@@ -48,12 +48,13 @@ htmlcov/
 *.pb
 *.onnx
 *.model
+*.joblib
 
 # Data
 *.csv
 *.parquet
 *.feather
-data/
+/data/
 *.xlsx
 
 # Logs

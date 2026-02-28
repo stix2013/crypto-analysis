@@ -1,6 +1,6 @@
 """Market regime detection using unsupervised learning."""
 
-from collections import defaultdict, deque
+from collections import deque
 from typing import Any
 
 import numpy as np
@@ -41,7 +41,20 @@ class RegimeDetector:
         self.regime_history: deque[MarketRegime] = deque(maxlen=1000)
         self.feature_buffer: deque[np.ndarray] = deque(maxlen=lookback * 2)
 
-        self.regime_stats = defaultdict(lambda: {"returns": [], "volatility": [], "volume": []})
+        self._regime_stats_data: dict = {"returns": [], "volatility": [], "volume": []}
+
+    @property
+    def regime_stats(self) -> dict:
+        return self._regime_stats_data
+
+    @regime_stats.setter
+    def regime_stats(self, value: dict) -> None:
+        self._regime_stats_data = value
+
+    def _get_regime_stat(self, regime_id: int) -> dict:
+        if regime_id not in self._regime_stats_data:
+            self._regime_stats_data[regime_id] = {"returns": [], "volatility": [], "volume": []}
+        return self._regime_stats_data[regime_id]
 
     def extract_regime_features(self, data: pd.DataFrame) -> np.ndarray:
         """Extract features for regime classification.
@@ -124,9 +137,10 @@ class RegimeDetector:
             regime_name = "ranging"
             regime_id = 4
 
-        self.regime_stats[regime_id]["returns"].append(returns)
-        self.regime_stats[regime_id]["volatility"].append(volatility)
-        self.regime_stats[regime_id]["volume"].append(features[4])
+        stat = self._get_regime_stat(regime_id)
+        stat["returns"].append(returns)
+        stat["volatility"].append(volatility)
+        stat["volume"].append(features[4])
 
         regime = MarketRegime(
             regime_id=regime_id,
@@ -154,10 +168,11 @@ class RegimeDetector:
         Returns:
             Confidence score between 0 and 1
         """
-        if len(self.regime_stats[regime_id]["returns"]) < 10:
+        stat = self._get_regime_stat(regime_id)
+        if len(stat["returns"]) < 10:
             return 0.5
 
-        hist_returns = np.array(self.regime_stats[regime_id]["returns"][-100:])
+        hist_returns = np.array(stat["returns"][-100:])
         current_return = features[0]
 
         mean_ret = hist_returns.mean()
