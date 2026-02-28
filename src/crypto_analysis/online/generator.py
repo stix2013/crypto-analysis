@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 
 from crypto_analysis.online.base import MarketRegime
@@ -68,7 +68,9 @@ class OnlineSignalGenerator(SignalGenerator):
         self.samples_since_update = 0
 
         self.rf = OnlineRandomForest(n_trees=10)
-        self.pa_classifier = PassiveAggressiveClassifier(C=0.1)
+        self.pa_classifier = SGDClassifier(
+            loss="hinge", penalty=None, learning_rate="pa1", eta0=1.0
+        )
 
         self.lstm: Optional[OnlineLSTM] = None
         if TF_AVAILABLE:
