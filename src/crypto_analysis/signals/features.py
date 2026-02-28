@@ -1,6 +1,5 @@
 """Feature engineering for cryptocurrency trading signals."""
 
-
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -63,11 +62,18 @@ class FeatureEngineer:
 
         if include_targets:
             data = self._add_targets(data)
-
-        # Drop NaN values
-        data = data.dropna()
+            feature_cols = self._get_base_feature_columns(data)
+            data = data.dropna(subset=feature_cols)
+        else:
+            data = data.dropna()
 
         return data
+
+    def _get_base_feature_columns(self, data: pd.DataFrame) -> list[str]:
+        """Get list of base feature column names (non-target)."""
+        exclude = ["open", "high", "low", "close", "volume"]
+        exclude += [col for col in data.columns if col.startswith("target_")]
+        return [col for col in data.columns if col not in exclude]
 
     def _add_price_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Add price action features.

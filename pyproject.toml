@@ -61,6 +61,11 @@ select = [
 ]
 ignore = [
     "E501",
+    "N803",  # Argument name should be lowercase (X, y are standard ML naming)
+    "N806",  # Variable in function should be lowercase
+    "B905",  # zip() without strict= (standard ML pattern)
+    "SIM105",  # Use contextlib.suppress - prefer explicit try/except for clarity
+    "C420",  # Unnecessary dict comprehension
 ]
 
 [tool.ruff.pydocstyle]
@@ -88,6 +93,9 @@ module = [
     "tensorflow.*",
     "sklearn.*",
     "scipy.*",
+    "pandas.*",
+    "torch.*",
+    "numpy.*",
 ]
 ignore_missing_imports = true
 

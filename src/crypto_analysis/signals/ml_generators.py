@@ -404,6 +404,8 @@ class RandomForestSignalGenerator(SignalGenerator):
 
         # Prepare features
         features_df = self.feature_engineer.create_features(data)
+        if len(features_df) == 0:
+            return []
         X = features_df[self.feature_cols].values[-1:].reshape(1, -1)
         X_scaled = self.scaler.transform(X)
 
