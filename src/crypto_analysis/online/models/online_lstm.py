@@ -133,9 +133,9 @@ class OnlineLSTM(OnlineModel):
             lr: New learning rate value
         """
         if self.model is not None:
-            import tensorflow.keras.backend as K
+            import tensorflow.keras.backend as backend
 
-            K.set_value(self.model.optimizer.learning_rate, lr)
+            backend.set_value(self.model.optimizer.learning_rate, lr)
         self.lr = lr
 
     def reset_states(self) -> None:

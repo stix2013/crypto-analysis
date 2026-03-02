@@ -291,10 +291,7 @@ class OnlineSignalGenerator(SignalGenerator):
 
         # If still unknown, use the name of the generator as a hint or default
         if symbol == "UNKNOWN":
-            if "_" in self.name:
-                symbol = self.name.split("_")[-1]
-            else:
-                symbol = "BTC"  # Fallback
+            symbol = self.name.split("_")[-1] if "_" in self.name else "BTC"
 
         signals = []
 

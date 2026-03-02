@@ -319,16 +319,18 @@ class PortfolioManager:
 
             # Stop Loss
             if pos.stop_loss and (
-                (pos.size > 0 and price <= pos.stop_loss) or (pos.size < 0 and price >= pos.stop_loss)
+                (pos.size > 0 and price <= pos.stop_loss)
+                or (pos.size < 0 and price >= pos.stop_loss)
             ):
-                    symbols_to_close.append((symbol, "stop_loss", price))
-                    continue
+                symbols_to_close.append((symbol, "stop_loss", price))
+                continue
 
             # Take Profit
             if pos.take_profit and (
-                (pos.size > 0 and price >= pos.take_profit) or (pos.size < 0 and price <= pos.take_profit)
+                (pos.size > 0 and price >= pos.take_profit)
+                or (pos.size < 0 and price <= pos.take_profit)
             ):
-                    symbols_to_close.append((symbol, "take_profit", price))
+                symbols_to_close.append((symbol, "take_profit", price))
 
         for symbol, reason, price in symbols_to_close:
             pos = self.positions[symbol]
