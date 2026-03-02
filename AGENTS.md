@@ -8,10 +8,11 @@ Signal generation system integrating machine learning, technical analysis, and s
 ### Training & Simulation
 ```bash
 # Run online learning training pipeline
+# Outputs saved to ./signals/ and ./models/
 ./run_training.sh BTCUSDT 1h 5000
 
 # Run prediction/inference with trained model
-python scripts/predict.py model_btcusdt.joblib --symbol BTCUSDT --interval 1h
+python scripts/predict.py models/model_1h_btcusdt.joblib --symbol BTCUSDT --interval 1h
 ```
 
 ### Testing
@@ -147,6 +148,8 @@ crypto-analysis/
 ├── scripts/
 │   ├── train_online.py        # Core training CLI
 │   └── predict.py             # Model inference CLI
+├── signals/                   # Generated trading signals (CSV)
+├── models/                    # Trained model checkpoints (joblib)
 ├── run_training.sh            # Training wrapper script
 ├── pyproject.toml
 └── AGENTS.md

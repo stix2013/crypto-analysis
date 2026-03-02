@@ -53,6 +53,8 @@ crypto-analysis/
 │   └── utils/          # Analytics & Optimization
 ├── tests/              # Comprehensive test suites
 ├── scripts/            # Training and Prediction CLIs
+├── signals/            # Generated signals (CSV)
+├── models/             # Trained model checkpoints (joblib)
 ├── run_training.sh     # Training runner
 ├── pyproject.toml
 └── README.md

@@ -1,0 +1,10 @@
+{
+  "general": {
+    "plan": {
+      "directory": ""
+    }
+  },
+  "experimental": {
+    "plan": true
+  }
+}

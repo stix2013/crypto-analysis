@@ -15,10 +15,15 @@ WARMUP_BARS=1000
 SEQ_LENGTH=60
 
 # --- Environment Setup ---
-if [ -f .env ]; then
+BASE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+if [ -f "$BASE_DIR/.env" ]; then
     echo "[Info] Loading environment from .env"
-    export $(grep -v '^#' .env | xargs)
+    export $(grep -v '^#' "$BASE_DIR/.env" | xargs)
 fi
+
+# Ensure output directories exist
+mkdir -p "$BASE_DIR/signals" "$BASE_DIR/models"
 
 # Determine Python command
 PYTHON_CMD="python3"
@@ -34,17 +39,21 @@ echo " Interval: $INTERVAL"
 echo " Bars:     $BARS"
 echo "============================================================"
 
-$PYTHON_CMD scripts/train_online.py "$SYMBOL" \
+# --- Output ---
+OUTPUT_SIGNALS="signals_${INTERVAL}_${SYMBOL,,}.csv"
+OUTPUT_MODEL="model_${INTERVAL}_${SYMBOL,,}.joblib"
+
+$PYTHON_CMD "$BASE_DIR/scripts/train_online.py" "$SYMBOL" \
     --interval "$INTERVAL" \
     --bars "$BARS" \
     --warmup-bars "$WARMUP_BARS" \
     --sequence-length "$SEQ_LENGTH" \
-    --output "signals_${SYMBOL,,}.csv" \
-    --model-output "model_${SYMBOL,,}.joblib"
+    --output "$BASE_DIR/signals/${OUTPUT_SIGNALS}" \
+    --model-output "$BASE_DIR/models/${OUTPUT_MODEL}"
 
 echo ""
 echo "[Success] Training pipeline completed."
-echo "[Output] Signals: signals_${SYMBOL,,}.csv"
-echo "[Output] Model:   model_${SYMBOL,,}.joblib"
+echo "[Output] Signals: ./signals/${OUTPUT_SIGNALS}"
+echo "[Output] Model:   ./models/${OUTPUT_MODEL}"
 echo "============================================================"
 
