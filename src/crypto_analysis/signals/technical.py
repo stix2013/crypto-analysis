@@ -1,5 +1,7 @@
 """Technical pattern-based signal generators."""
 
+from collections.abc import Callable
+
 import pandas as pd
 from scipy.signal import find_peaks
 
@@ -27,7 +29,7 @@ class TechnicalPatternGenerator(SignalGenerator):
         super().__init__(name, lookback_period=100)
         self.patterns: dict[
             str,
-            callable,
+            Callable,
         ] = {
             "double_bottom": self._detect_double_bottom,
             "double_top": self._detect_double_top,

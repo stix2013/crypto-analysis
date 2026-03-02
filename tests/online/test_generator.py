@@ -5,7 +5,6 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
-
 from crypto_analysis.online.generator import OnlineSignalGenerator
 
 

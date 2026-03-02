@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-
 from crypto_analysis.signals.backtest import Backtester
 from crypto_analysis.signals.strategy import (
     DataHandler,

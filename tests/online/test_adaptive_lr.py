@@ -1,7 +1,6 @@
 """Tests for Adaptive Learning Rate."""
 
 import numpy as np
-
 from crypto_analysis.online.detection.adaptive_lr import AdaptiveLearningRate
 
 

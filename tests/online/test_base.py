@@ -4,7 +4,6 @@ from datetime import datetime
 
 import numpy as np
 import pytest
-
 from crypto_analysis.online.base import MarketRegime, OnlineModel
 
 

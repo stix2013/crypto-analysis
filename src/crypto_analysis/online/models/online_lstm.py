@@ -124,7 +124,7 @@ class OnlineLSTM(OnlineModel):
         """
         if self.model is None:
             return np.zeros((len(X), 1))
-        return self.model.predict(X, verbose=0)
+        return np.asarray(self.model.predict(X, verbose=0))
 
     def set_learning_rate(self, lr: float) -> None:
         """Update the optimizer learning rate.

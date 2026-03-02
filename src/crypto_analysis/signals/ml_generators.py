@@ -22,12 +22,12 @@ try:
     TF_AVAILABLE = True
 except ImportError:
     TF_AVAILABLE = False
-    Model = None  # type: ignore
-    EarlyStopping = None  # type: ignore
-    ReduceLROnPlateau = None  # type: ignore
-    LSTM = None  # type: ignore
-    Dense = None  # type: ignore
-    Input = None  # type: ignore
+    Model = None
+    EarlyStopping = None
+    ReduceLROnPlateau = None
+    LSTM = None
+    Dense = None
+    Input = None
 
 
 class LSTMSignalGenerator(SignalGenerator):
@@ -175,14 +175,14 @@ class LSTMSignalGenerator(SignalGenerator):
             future_vol = vol_values[i + self.sequence_length]
             y_vol.append(1 if future_vol > self.vol_median_ else 0)
 
-        X = np.array(X)
-        y_dir = np.array(y_dir)
-        y_vol = np.array(y_vol)
+        X_arr = np.array(X)
+        y_dir_arr = np.array(y_dir)
+        y_vol_arr = np.array(y_vol)
 
         # Chronological train/val split
-        X_train, X_val = X[:n_train_seq], X[n_train_seq:]
-        y_dir_train, y_dir_val = y_dir[:n_train_seq], y_dir[n_train_seq:]
-        y_vol_train, y_vol_val = y_vol[:n_train_seq], y_vol[n_train_seq:]
+        X_train, X_val = X_arr[:n_train_seq], X_arr[n_train_seq:]
+        y_dir_train, y_dir_val = y_dir_arr[:n_train_seq], y_dir_arr[n_train_seq:]
+        y_vol_train, y_vol_val = y_vol_arr[:n_train_seq], y_vol_arr[n_train_seq:]
 
         print(
             f"[{self.name}] Training on {len(X_train)} sequences, "
@@ -190,21 +190,25 @@ class LSTMSignalGenerator(SignalGenerator):
         )
 
         if self.model is None:
-            self.n_features = X.shape[2]
+            self.n_features = int(X_arr.shape[2])
             self.build_model()
 
-        self.model.fit(
-            X_train,
-            {"direction": y_dir_train, "volatility": y_vol_train},
-            validation_data=(X_val, {"direction": y_dir_val, "volatility": y_vol_val}),
-            epochs=epochs,
-            batch_size=batch_size,
-            callbacks=[
-                EarlyStopping(patience=5, restore_best_weights=True),
-                ReduceLROnPlateau(factor=0.5, patience=3),
-            ],
-            verbose=1,
-        )
+        if self.model is not None:
+            self.model.fit(
+                X_train,
+                {"direction": y_dir_train, "volatility": y_vol_train},
+                validation_data=(
+                    X_val,
+                    {"direction": y_dir_val, "volatility": y_vol_val},
+                ),
+                epochs=epochs,
+                batch_size=batch_size,
+                callbacks=[
+                    EarlyStopping(patience=5, restore_best_weights=True),
+                    ReduceLROnPlateau(factor=0.5, patience=3),
+                ],
+                verbose=1,
+            )
 
         self.is_fitted = True
         print(f"[{self.name}] Training complete!")
@@ -253,6 +257,8 @@ class LSTMSignalGenerator(SignalGenerator):
         sequence = scaled[-self.sequence_length :].reshape(1, self.sequence_length, -1)
 
         # Predict
+        if self.model is None:
+            return []
         direction_pred, vol_pred = self.model.predict(sequence, verbose=0)
 
         # Parse predictions

@@ -1,7 +1,6 @@
 """Adaptive regime-based ML Strategy."""
 
 import pandas as pd
-
 from crypto_analysis.online.detection.regime import RegimeDetector
 from crypto_analysis.signals.base import Signal
 from crypto_analysis.signals.strategy import (

@@ -2,7 +2,6 @@
 
 import pandas as pd
 import pytest
-
 from crypto_analysis.signals.aggregator import SignalAggregator
 from crypto_analysis.signals.base import Signal, SignalType
 

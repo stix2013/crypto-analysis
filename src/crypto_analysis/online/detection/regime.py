@@ -1,5 +1,6 @@
 """Market regime detection using unsupervised learning."""
 
+import typing
 from collections import deque
 from typing import Any
 
@@ -58,7 +59,7 @@ class RegimeDetector:
                 "volatility": [],
                 "volume": [],
             }
-        return self._regime_stats_data[regime_id]
+        return typing.cast(dict[Any, Any], self._regime_stats_data[regime_id])
 
     def extract_regime_features(self, data: pd.DataFrame) -> np.ndarray:
         """Extract features for regime classification.
@@ -192,7 +193,7 @@ class RegimeDetector:
         z_score = abs(current_return - mean_ret) / std_ret
         confidence = 1 / (1 + z_score)
 
-        return min(confidence, 0.99)
+        return float(min(confidence, 0.99))
 
     def _on_regime_change(
         self, old_regime: MarketRegime | None, new_regime: MarketRegime

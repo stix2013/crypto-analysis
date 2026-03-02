@@ -10,9 +10,8 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from dotenv import load_dotenv
-
 from crypto_analysis.data import create_client
+from dotenv import load_dotenv
 
 load_dotenv()
 

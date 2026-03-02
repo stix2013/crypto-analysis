@@ -15,10 +15,9 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from dotenv import load_dotenv
-
 from crypto_analysis.data import create_client
 from crypto_analysis.online.generator import OnlineSignalGenerator
+from dotenv import load_dotenv
 
 load_dotenv()
 

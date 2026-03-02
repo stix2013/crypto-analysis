@@ -142,37 +142,37 @@ class OnlineSignalGenerator(SignalGenerator):
             y_lstm.append(np.sign(future_return))
             y_other.append(1 if future_return > 0 else 0)
 
-        X_lstm = np.array(X_lstm)
-        y_lstm = np.array(y_lstm)
-        X_other = np.array(X_other)
-        y_other = np.array(y_other)
+        X_lstm_arr = np.array(X_lstm)
+        y_lstm_arr = np.array(y_lstm)
+        X_other_arr = np.array(X_other)
+        y_other_arr = np.array(y_other)
 
-        if self.lstm is not None and len(X_lstm) > 0:
+        if self.lstm is not None and len(X_lstm_arr) > 0:
             print(f"[{self.name}] Training LSTM...")
-            for i in range(0, len(X_lstm), 32):
-                batch_X = X_lstm[i : i + 32]
-                batch_y = y_lstm[i : i + 32].reshape(-1, 1)
+            for i in range(0, len(X_lstm_arr), 32):
+                batch_X = X_lstm_arr[i : i + 32]
+                batch_y = y_lstm_arr[i : i + 32].reshape(-1, 1)
                 if len(batch_X) > 0:
                     self.lstm.partial_fit(batch_X, batch_y)
 
-        if self.nn is not None and len(X_other) > 0:
+        if self.nn is not None and len(X_other_arr) > 0:
             print(f"[{self.name}] Training Neural Network...")
-            for i in range(0, len(X_other), 64):
+            for i in range(0, len(X_other_arr), 64):
                 self.nn.partial_fit(
-                    X_other[i : i + 64], y_other[i : i + 64].reshape(-1, 1)
+                    X_other_arr[i : i + 64], y_other_arr[i : i + 64].reshape(-1, 1)
                 )
 
-        if len(X_other) > 0:
+        if len(X_other_arr) > 0:
             print(f"[{self.name}] Training Random Forest...")
-            self.rf.partial_fit(X_other, y_other)
+            self.rf.partial_fit(X_other_arr, y_other_arr)
 
             print(f"[{self.name}] Training PA Classifier...")
             batch_size = 1000
-            for i in range(0, len(X_other), batch_size):
-                end_idx = min(i + batch_size, len(X_other))
+            for i in range(0, len(X_other_arr), batch_size):
+                end_idx = min(i + batch_size, len(X_other_arr))
                 self.pa_classifier.partial_fit(
-                    X_other[i:end_idx],
-                    y_other[i:end_idx],
+                    X_other_arr[i:end_idx],
+                    y_other_arr[i:end_idx],
                     classes=[0, 1],
                 )
 

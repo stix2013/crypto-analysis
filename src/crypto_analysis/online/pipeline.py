@@ -92,7 +92,7 @@ class ContinuousLearningPipeline:
             signals = self.active_model.generate(data)
             return signals, "active"
 
-        if random.random() < self.ab_split_ratio:
+        if random.random() < self.ab_split_ratio and self.candidate_model is not None:
             signals = self.candidate_model.generate(data)
             return signals, "candidate"
         else:

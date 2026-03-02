@@ -48,6 +48,9 @@ dev = [
 [project.scripts]
 crypto-signals = "crypto_analysis.cli:main"
 
+[tool.ruff]
+exclude = [".gemini", ".opencode", "models", "signals"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "ASYNC"]
 ignore = [
@@ -67,6 +70,12 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
+exclude = [
+    '\.gemini',
+    '\.opencode',
+    'models',
+    'signals',
+]
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

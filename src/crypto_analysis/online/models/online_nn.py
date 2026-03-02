@@ -9,7 +9,7 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
-    nn = None  # type: ignore
+    nn = None
 
 from crypto_analysis.online.base import OnlineModel
 
@@ -122,7 +122,7 @@ class OnlineNeuralNetwork(OnlineModel):
             self._update_fisher(X_tensor, y_tensor)
 
         self.update_count += 1
-        return loss.item()
+        return float(loss.item())
 
     def _compute_ewc_loss(self) -> torch.Tensor:
         """Compute elastic weight consolidation penalty."""
@@ -180,4 +180,4 @@ class OnlineNeuralNetwork(OnlineModel):
         with torch.no_grad():
             X_tensor = torch.FloatTensor(X).to(self.device)
             output = self.model(X_tensor)
-        return output.cpu().numpy().flatten()
+        return np.asarray(output.cpu().numpy().flatten())

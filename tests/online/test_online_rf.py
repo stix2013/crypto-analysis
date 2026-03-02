@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from crypto_analysis.online.models.online_rf import OnlineRandomForest
 
 

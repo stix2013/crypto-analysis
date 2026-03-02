@@ -4,7 +4,7 @@ from collections import Counter
 
 import numpy as np
 
-from crypto_analysis.signals.base import Signal, SignalType
+from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 
 
 class SignalAggregator:
@@ -39,7 +39,7 @@ class SignalAggregator:
         self.weights: dict[str, float] = {}
         self.signal_history: list[Signal] = []
 
-    def add_generator(self, generator, weight: float = 1.0) -> None:
+    def add_generator(self, generator: SignalGenerator, weight: float = 1.0) -> None:
         """Add a signal generator with weight.
 
         Args:
@@ -111,7 +111,7 @@ class SignalAggregator:
             return None
 
         # Select highest scoring signal type
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=lambda k: scores[k])
         best_score = scores[best_type]
 
         # Threshold
@@ -162,7 +162,7 @@ class SignalAggregator:
             return None
 
         best_signals = [s for s in signals if s.signal_type == best_type]
-        avg_confidence = np.mean([s.confidence for s in best_signals])
+        avg_confidence = float(np.mean([s.confidence for s in best_signals]))
 
         return Signal(
             symbol=best_signals[0].symbol,

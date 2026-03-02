@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from crypto_analysis.data.binance import BinanceClient, BinanceConfig, create_client
 
 

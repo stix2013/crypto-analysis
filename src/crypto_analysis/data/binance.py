@@ -9,7 +9,7 @@ from typing import Literal
 
 import dotenv
 import pandas as pd
-import requests  # type: ignore[import-untyped]
+import requests
 
 dotenv.load_dotenv()
 

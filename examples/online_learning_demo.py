@@ -9,7 +9,6 @@ This script demonstrates:
 
 import numpy as np
 import pandas as pd
-
 from crypto_analysis.online.generator import OnlineSignalGenerator
 from crypto_analysis.online.pipeline import ContinuousLearningPipeline
 

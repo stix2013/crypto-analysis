@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
 from crypto_analysis.online.pipeline import ContinuousLearningPipeline
 
 

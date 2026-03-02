@@ -33,7 +33,7 @@ class OnlineRandomForest(OnlineModel):
         self.n_trees = n_trees
         self.max_samples = max_samples_per_tree
         self.trees: list[DecisionTreeRegressor | None] = []
-        self.sample_buffers = [
+        self.sample_buffers: list[deque[tuple[np.ndarray, np.ndarray]]] = [
             deque(maxlen=max_samples_per_tree) for _ in range(n_trees)
         ]
 
@@ -92,4 +92,4 @@ class OnlineRandomForest(OnlineModel):
         if predictions.size == 0:
             return np.zeros(len(X))
 
-        return np.mean(predictions, axis=0)
+        return np.asarray(np.mean(predictions, axis=0))
