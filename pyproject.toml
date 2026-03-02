@@ -8,18 +8,21 @@ version = "0.1.0"
 description = "Signal generation system integrating ML, technical analysis, and statistical methods for cryptocurrency trading"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
-authors = [
-    {name = "Author", email = "author@example.com"}
+license = { text = "MIT" }
+authors = [{ name = "SH Moeladi", email = "stevan.moeladi@gmail.com" }]
+keywords = [
+    "crypto",
+    "trading",
+    "signals",
+    "machine-learning",
+    "technical-analysis",
 ]
-keywords = ["crypto", "trading", "signals", "machine-learning", "technical-analysis"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Financial and Insurance Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "numpy>=1.24.0",
@@ -32,9 +35,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = [
-    "tensorflow>=2.13.0",
-]
+ml = ["tensorflow>=2.13.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -48,33 +49,21 @@ dev = [
 crypto-signals = "crypto_analysis.cli:main"
 
 [tool.ruff]
-target-version = "py311"
-line-length = 100
-select = [
-    "E",
-    "F",
-    "I",
-    "N",
-    "W",
-    "UP",
-    "B",
-    "C4",
-    "SIM",
-]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "ASYNC"]
 ignore = [
     "E501",
-    "N803",  # Argument name should be lowercase (X, y are standard ML naming)
-    "N806",  # Variable in function should be lowercase
-    "B905",  # zip() without strict= (standard ML pattern)
-    "SIM105",  # Use contextlib.suppress - prefer explicit try/except for clarity
-    "C420",  # Unnecessary dict comprehension
+    "N803",   # Argument name should be lowercase (X, y are standard ML naming)
+    "N806",   # Variable in function should be lowercase
+    "B905",   # zip() without strict= (standard ML pattern)
+    "SIM105", # Use contextlib.suppress - prefer explicit try/except for clarity
+    "E722",   # Bare except (used in some legacy parts of code)
 ]
 
-[tool.ruff.pydocstyle]
-convention = "google"
-
-[tool.ruff.isort]
-known-first-party = ["crypto_analysis"]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
@@ -90,27 +79,20 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 
-[[tool.mypy.overrides]]
-module = [
-    "tensorflow.*",
-    "sklearn.*",
-    "scipy.*",
-    "pandas.*",
-    "torch.*",
-    "numpy.*",
-]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "examples.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+disallow_incomplete_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = [
-    "-v",
-    "--tb=short",
-    "--strict-markers",
-]
+addopts = ["-v", "--tb=short", "--strict-markers"]
 
 [tool.coverage.run]
 source = ["src/crypto_analysis"]
