@@ -1,7 +1,9 @@
 """Strategy parameter optimization and grid search."""
 
 import itertools
-from typing import Dict, List, Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 import pandas as pd
 from tqdm import tqdm
 
@@ -13,9 +15,9 @@ class ParameterOptimizer:
 
     def __init__(
         self,
-        strategy_factory: Callable[[List[str], Dict[str, Any]], Any],
-        data: Dict[str, pd.DataFrame],
-        symbols: List[str],
+        strategy_factory: Callable[[list[str], dict[str, Any]], Any],
+        data: dict[str, pd.DataFrame],
+        symbols: list[str],
         initial_equity: float = 10000.0,
     ) -> None:
         """Initialize optimizer.
@@ -30,9 +32,9 @@ class ParameterOptimizer:
         self.data = data
         self.symbols = symbols
         self.initial_equity = initial_equity
-        self.results: List[Dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
 
-    def grid_search(self, param_grid: Dict[str, List[Any]]) -> pd.DataFrame:
+    def grid_search(self, param_grid: dict[str, list[Any]]) -> pd.DataFrame:
         """Run grid search over parameter combinations.
 
         Args:

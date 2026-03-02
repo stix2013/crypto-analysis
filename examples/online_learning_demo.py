@@ -34,7 +34,7 @@ def generate_synthetic_data(n_points: int = 5000) -> pd.DataFrame:
     ]
 
     prices = [30000]
-    for regime, length, drift, vol in regimes:
+    for _regime, length, drift, vol in regimes:
         for _ in range(length):
             ret = np.random.normal(drift, vol)
             prices.append(prices[-1] * (1 + ret))
@@ -101,12 +101,11 @@ def demo_online_learning() -> None:
                 f"PA={weights.get('pa', 0):.2f}"
             )
 
-        if len(generator.regime_detector.regime_history) > 1:
-            if (
-                generator.regime_detector.regime_history[-1].regime_id
-                != generator.regime_detector.regime_history[-2].regime_id
-            ):
-                regime_changes_detected += 1
+        if len(generator.regime_detector.regime_history) > 1 and (
+            generator.regime_detector.regime_history[-1].regime_id
+            != generator.regime_detector.regime_history[-2].regime_id
+        ):
+            regime_changes_detected += 1
 
     print(f"\n{'=' * 60}")
     print("Results:")
@@ -134,7 +133,9 @@ def demo_continuous_pipeline() -> None:
 
         signals, source = pipeline.get_prediction(window)
         if signals:
-            print(f"[{window.index[-1]}] Source: {source} - Signal: {signals[0].signal_type.value}")
+            print(
+                f"[{window.index[-1]}] Source: {source} - Signal: {signals[0].signal_type.value}"
+            )
 
     print(f"\nA/B Testing Active: {pipeline.ab_test_active}")
     print(f"Models in buffer: {len(pipeline.data_buffer)}")

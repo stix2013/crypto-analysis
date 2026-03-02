@@ -53,7 +53,11 @@ class RegimeDetector:
 
     def _get_regime_stat(self, regime_id: int) -> dict:
         if regime_id not in self._regime_stats_data:
-            self._regime_stats_data[regime_id] = {"returns": [], "volatility": [], "volume": []}
+            self._regime_stats_data[regime_id] = {
+                "returns": [],
+                "volatility": [],
+                "volume": [],
+            }
         return self._regime_stats_data[regime_id]
 
     def extract_regime_features(self, data: pd.DataFrame) -> np.ndarray:
@@ -86,13 +90,17 @@ class RegimeDetector:
             if prev_vol > 0:
                 features[3] = returns.std() / prev_vol - 1
 
-        features[4] = recent["volume"].mean() / recent["volume"].rolling(50).mean().iloc[-1]
+        features[4] = (
+            recent["volume"].mean() / recent["volume"].rolling(50).mean().iloc[-1]
+        )
 
         features[5] = (
             recent["close"].iloc[-1] - recent["close"].rolling(20).mean().iloc[-1]
         ) / recent["close"].std()
 
-        features[6] = (recent["high"].max() - recent["low"].min()) / recent["close"].mean()
+        features[6] = (recent["high"].max() - recent["low"].min()) / recent[
+            "close"
+        ].mean()
 
         if len(returns) > 10:
             features[7] = stats.skew(returns)
@@ -100,7 +108,8 @@ class RegimeDetector:
 
         if "true_range" in recent.columns:
             features[9] = (
-                abs(recent["close"].iloc[-1] - recent["close"].iloc[0]) / recent["true_range"].sum()
+                abs(recent["close"].iloc[-1] - recent["close"].iloc[0])
+                / recent["true_range"].sum()
             )
 
         return features
@@ -158,7 +167,9 @@ class RegimeDetector:
 
         return regime
 
-    def _calculate_regime_confidence(self, regime_id: int, features: np.ndarray) -> float:
+    def _calculate_regime_confidence(
+        self, regime_id: int, features: np.ndarray
+    ) -> float:
         """Calculate confidence in regime classification.
 
         Args:
@@ -183,14 +194,18 @@ class RegimeDetector:
 
         return min(confidence, 0.99)
 
-    def _on_regime_change(self, old_regime: MarketRegime | None, new_regime: MarketRegime) -> None:
+    def _on_regime_change(
+        self, old_regime: MarketRegime | None, new_regime: MarketRegime
+    ) -> None:
         """Handle regime transition.
 
         Args:
             old_regime: Previous regime (can be None)
             new_regime: Newly detected regime
         """
-        print(f"Regime change: {old_regime.name if old_regime else 'None'} -> {new_regime.name}")
+        print(
+            f"Regime change: {old_regime.name if old_regime else 'None'} -> {new_regime.name}"
+        )
 
     def get_regime_specific_model(self, base_models: dict[str, Any]) -> Any:
         """Select appropriate model for current regime.

@@ -1,8 +1,5 @@
 """Tests for FeatureEngineer."""
 
-import numpy as np
-import pandas as pd
-import pytest
 
 from crypto_analysis.signals.features import FeatureEngineer
 

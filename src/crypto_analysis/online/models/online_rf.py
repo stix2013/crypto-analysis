@@ -33,7 +33,9 @@ class OnlineRandomForest(OnlineModel):
         self.n_trees = n_trees
         self.max_samples = max_samples_per_tree
         self.trees: list[DecisionTreeRegressor | None] = []
-        self.sample_buffers = [deque(maxlen=max_samples_per_tree) for _ in range(n_trees)]
+        self.sample_buffers = [
+            deque(maxlen=max_samples_per_tree) for _ in range(n_trees)
+        ]
 
     def partial_fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """Update trees with new samples.
@@ -84,7 +86,9 @@ class OnlineRandomForest(OnlineModel):
         if not self.trees:
             return np.zeros(len(X))
 
-        predictions = np.array([tree.predict(X) for tree in self.trees if tree is not None])
+        predictions = np.array(
+            [tree.predict(X) for tree in self.trees if tree is not None]
+        )
         if predictions.size == 0:
             return np.zeros(len(X))
 

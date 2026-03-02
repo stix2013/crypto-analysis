@@ -69,7 +69,7 @@ def example_usage():
 
     # 1. LSTM Generator (reduced epochs for demo)
     print("\n1. Training LSTM...")
-    lstm_gen = LSTMSignalGenerator(
+    LSTMSignalGenerator(
         sequence_length=60,
         lstm_units=[64, 32],
         dropout=0.2,
@@ -114,7 +114,7 @@ def example_usage():
                 sigs = gen.generate(window)
                 all_signals.extend(sigs)
             except Exception as e:
-                warnings.warn(f"Generator {gen.name} failed: {e}")
+                warnings.warn(f"Generator {gen.name} failed: {e}", stacklevel=2)
 
         if all_signals:
             final = aggregator.aggregate(all_signals)

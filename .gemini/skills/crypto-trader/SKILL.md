@@ -29,7 +29,7 @@ import pandas as pd
 class MyIndicator(Indicator):
     name = "my_indicator"
     required_columns = ["close"]
-    
+
     def calculate(self, data: pd.DataFrame) -> pd.Series:
         # Implementation logic
         return data["close"].rolling(window=14).mean()

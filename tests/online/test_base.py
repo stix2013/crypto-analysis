@@ -1,8 +1,9 @@
 """Tests for online base classes."""
 
+from datetime import datetime
+
 import numpy as np
 import pytest
-from datetime import datetime
 
 from crypto_analysis.online.base import MarketRegime, OnlineModel
 

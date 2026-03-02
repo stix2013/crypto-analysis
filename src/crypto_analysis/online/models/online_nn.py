@@ -91,7 +91,9 @@ class OnlineNeuralNetwork(OnlineModel):
 
         return nn.Sequential(*layers).to(self.device)
 
-    def partial_fit(self, X: np.ndarray, y: np.ndarray, compute_fisher: bool = False) -> float:
+    def partial_fit(
+        self, X: np.ndarray, y: np.ndarray, compute_fisher: bool = False
+    ) -> float:
         """Train with EWC regularization.
 
         Args:

@@ -1,7 +1,7 @@
 """Online signal generator with real-time adaptation."""
 
 from collections import deque
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -72,14 +72,14 @@ class OnlineSignalGenerator(SignalGenerator):
             loss="hinge", penalty=None, learning_rate="pa1", eta0=1.0
         )
 
-        self.lstm: Optional[OnlineLSTM] = None
+        self.lstm: OnlineLSTM | None = None
         if TF_AVAILABLE:
             try:
                 self.lstm = OnlineLSTM(sequence_length=sequence_length)
             except ImportError:
                 pass
 
-        self.nn: Optional[OnlineNeuralNetwork] = None
+        self.nn: OnlineNeuralNetwork | None = None
         if TORCH_AVAILABLE:
             try:
                 self.nn = OnlineNeuralNetwork(input_dim=50)
@@ -158,7 +158,9 @@ class OnlineSignalGenerator(SignalGenerator):
         if self.nn is not None and len(X_other) > 0:
             print(f"[{self.name}] Training Neural Network...")
             for i in range(0, len(X_other), 64):
-                self.nn.partial_fit(X_other[i : i + 64], y_other[i : i + 64].reshape(-1, 1))
+                self.nn.partial_fit(
+                    X_other[i : i + 64], y_other[i : i + 64].reshape(-1, 1)
+                )
 
         if len(X_other) > 0:
             print(f"[{self.name}] Training Random Forest...")
@@ -189,7 +191,9 @@ class OnlineSignalGenerator(SignalGenerator):
         features_df = self.feature_engineer.create_features(data)
         return features_df[self.feature_cols]
 
-    def generate(self, data: pd.DataFrame, current_position: float | None = None) -> list[Signal]:
+    def generate(
+        self, data: pd.DataFrame, current_position: float | None = None
+    ) -> list[Signal]:
         """Generate signals with online adaptation.
 
         Args:
@@ -217,7 +221,9 @@ class OnlineSignalGenerator(SignalGenerator):
         if len(scaled) < self.sequence_length:
             return []
 
-        current_sequence = scaled[-self.sequence_length :].reshape(1, self.sequence_length, -1)
+        current_sequence = scaled[-self.sequence_length :].reshape(
+            1, self.sequence_length, -1
+        )
         current_point = scaled[-1:].reshape(1, -1)
 
         predictions: dict[str, float] = {}
@@ -294,7 +300,9 @@ class OnlineSignalGenerator(SignalGenerator):
 
         threshold = self._get_regime_threshold(regime)
 
-        if ensemble_pred > threshold and (current_position is None or current_position <= 0):
+        if ensemble_pred > threshold and (
+            current_position is None or current_position <= 0
+        ):
             signals.append(
                 Signal(
                     symbol=symbol,
@@ -310,7 +318,9 @@ class OnlineSignalGenerator(SignalGenerator):
                     },
                 )
             )
-        elif ensemble_pred < -threshold and (current_position is None or current_position >= 0):
+        elif ensemble_pred < -threshold and (
+            current_position is None or current_position >= 0
+        ):
             signals.append(
                 Signal(
                     symbol=symbol,
@@ -373,7 +383,9 @@ class OnlineSignalGenerator(SignalGenerator):
 
         if self.lstm is not None:
             try:
-                self.lstm.partial_fit(old_pred["features"], np.array([[actual_direction]]))
+                self.lstm.partial_fit(
+                    old_pred["features"], np.array([[actual_direction]])
+                )
             except Exception:
                 pass
 
@@ -421,7 +433,9 @@ class OnlineSignalGenerator(SignalGenerator):
 
         # Need enough per-model error history
         active_models = {
-            name: errors for name, errors in self.model_errors.items() if len(errors) >= min_samples
+            name: errors
+            for name, errors in self.model_errors.items()
+            if len(errors) >= min_samples
         }
 
         if not active_models:
@@ -440,7 +454,8 @@ class OnlineSignalGenerator(SignalGenerator):
         # Compute softmax
         max_inv = max(inv_errors.values())
         exp_weights = {
-            name: np.exp((val - max_inv) / temperature) for name, val in inv_errors.items()
+            name: np.exp((val - max_inv) / temperature)
+            for name, val in inv_errors.items()
         }
         total = sum(exp_weights.values())
 

@@ -24,7 +24,9 @@ load_dotenv()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train online learning model on crypto futures")
+    parser = argparse.ArgumentParser(
+        description="Train online learning model on crypto futures"
+    )
     parser.add_argument(
         "symbol",
         nargs="?",
@@ -32,7 +34,9 @@ def main() -> None:
         help="Trading pair symbol (e.g., ETHUSDT, BTCUSDT)",
     )
     parser.add_argument(
-        "--interval", default=os.environ.get("TRAIN_INTERVAL", "15m"), help="Kline interval"
+        "--interval",
+        default=os.environ.get("TRAIN_INTERVAL", "15m"),
+        help="Kline interval",
     )
     parser.add_argument(
         "--bars",
@@ -46,7 +50,9 @@ def main() -> None:
         default=int(os.environ.get("TRAIN_WARMUP_BARS", 1000)),
         help="Number of bars for initial training",
     )
-    parser.add_argument("--output", type=str, default=None, help="Output CSV file for signals")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output CSV file for signals"
+    )
     parser.add_argument(
         "--model-output", type=str, default=None, help="Output file for trained model"
     )

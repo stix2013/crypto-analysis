@@ -180,22 +180,22 @@ from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 
 class TechnicalIndicatorGenerator(SignalGenerator):
     """Example implementation of a technical signal generator."""
-    
+
     def __init__(self, name: str, rsi_period: int = 14):
         super().__init__(name, lookback_period=rsi_period + 50)
         self.rsi_period = rsi_period
-    
+
     def fit(self, data: pd.DataFrame) -> None:
         # Technical generators often don't need fitting
         self.is_fitted = True
-    
+
     def generate(self, data: pd.DataFrame, current_position: Optional[float] = None) -> list[Signal]:
         if len(data) < self.lookback_period:
             return []
-            
+
         # Calculation logic using vectorized pandas/numpy
         # ...
-        
+
         return [Signal(
             symbol="BTCUSDT",
             signal_type=SignalType.ENTRY_LONG,

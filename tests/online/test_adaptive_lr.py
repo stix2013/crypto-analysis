@@ -1,7 +1,6 @@
 """Tests for Adaptive Learning Rate."""
 
 import numpy as np
-import pytest
 
 from crypto_analysis.online.detection.adaptive_lr import AdaptiveLearningRate
 
@@ -58,7 +57,7 @@ class TestAdaptiveLearningRate:
         """Test high volatility reduces learning rate."""
         scheduler = AdaptiveLearningRate(base_lr=0.01)
 
-        for i in range(15):
+        for _i in range(15):
             scheduler.update(recent_loss=0.5, market_volatility=0.5)
 
         assert scheduler.current_lr < 0.01
@@ -67,7 +66,7 @@ class TestAdaptiveLearningRate:
         """Test low volatility allows higher learning rate."""
         scheduler = AdaptiveLearningRate(base_lr=0.001)
 
-        for i in range(15):
+        for _i in range(15):
             scheduler.update(recent_loss=0.5, market_volatility=0.001)
 
         assert scheduler.current_lr > 0.001
@@ -76,7 +75,7 @@ class TestAdaptiveLearningRate:
         """Test learning rate stays within bounds."""
         scheduler = AdaptiveLearningRate(min_lr=0.0001, max_lr=0.1)
 
-        for i in range(100):
+        for _i in range(100):
             scheduler.update(
                 recent_loss=np.random.random(),
                 market_volatility=np.random.random(),
@@ -88,7 +87,7 @@ class TestAdaptiveLearningRate:
         """Test learning rate history is tracked."""
         scheduler = AdaptiveLearningRate()
 
-        for i in range(50):
+        for _i in range(50):
             scheduler.update(recent_loss=0.5, market_volatility=0.02)
 
         assert len(scheduler.lr_history) == 50

@@ -1,9 +1,10 @@
 """Tests for Online Signal Generator."""
 
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
 from crypto_analysis.online.generator import OnlineSignalGenerator
 

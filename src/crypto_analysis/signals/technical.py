@@ -221,7 +221,9 @@ class TechnicalPatternGenerator(SignalGenerator):
         recent = data.tail(lookback)
 
         # Check for consolidation (low volatility)
-        consolidation_range = (recent["high"].max() - recent["low"].min()) / recent["close"].mean()
+        consolidation_range = (recent["high"].max() - recent["low"].min()) / recent[
+            "close"
+        ].mean()
 
         if consolidation_range < 0.05:  # Less than 5% range
             # Check for breakout

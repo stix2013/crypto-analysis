@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from crypto_analysis.signals.aggregator import SignalAggregator
@@ -219,7 +220,10 @@ class PortfolioManager:
         if order.side == Side.BUY and (self.cash - cost - commission) < 0:
             import warnings
 
-            warnings.warn(f"Insufficient funds to execute BUY order for {order.symbol}.")
+            warnings.warn(
+                f"Insufficient funds to execute BUY order for {order.symbol}.",
+                stacklevel=2,
+            )
             return
 
         # Deduct commission
@@ -251,9 +255,13 @@ class PortfolioManager:
 
             # Increasing position (Buy when Long, Sell when Short)
             if (is_long and is_buy) or (not is_long and not is_buy):
-                new_size = current_position.size + (order.size if is_buy else -order.size)
+                new_size = current_position.size + (
+                    order.size if is_buy else -order.size
+                )
                 # VWAP calculation
-                current_value = abs(current_position.size) * current_position.entry_price
+                current_value = (
+                    abs(current_position.size) * current_position.entry_price
+                )
                 new_value = order.size * price
                 new_entry_price = (current_value + new_value) / abs(new_size)
 
@@ -270,7 +278,9 @@ class PortfolioManager:
 
                 self.realized_pnl += pnl
 
-                new_size = current_position.size + (order.size if is_buy else -order.size)
+                new_size = current_position.size + (
+                    order.size if is_buy else -order.size
+                )
 
                 if abs(new_size) < 1e-8:  # Floating point zero
                     del self.positions[order.symbol]
@@ -308,18 +318,16 @@ class PortfolioManager:
             price = data_handler.get_current_price(symbol)
 
             # Stop Loss
-            if pos.stop_loss:
-                if (pos.size > 0 and price <= pos.stop_loss) or (
-                    pos.size < 0 and price >= pos.stop_loss
-                ):
+            if pos.stop_loss and (
+                (pos.size > 0 and price <= pos.stop_loss) or (pos.size < 0 and price >= pos.stop_loss)
+            ):
                     symbols_to_close.append((symbol, "stop_loss", price))
                     continue
 
             # Take Profit
-            if pos.take_profit:
-                if (pos.size > 0 and price >= pos.take_profit) or (
-                    pos.size < 0 and price <= pos.take_profit
-                ):
+            if pos.take_profit and (
+                (pos.size > 0 and price >= pos.take_profit) or (pos.size < 0 and price <= pos.take_profit)
+            ):
                     symbols_to_close.append((symbol, "take_profit", price))
 
         for symbol, reason, price in symbols_to_close:
@@ -415,7 +423,9 @@ class MLStrategy(Strategy):
         for symbol in self.symbols:
             try:
                 # Get enough data for all generators
-                max_lookback = max(g.lookback_period for g in self.aggregator.generators)
+                max_lookback = max(
+                    g.lookback_period for g in self.aggregator.generators
+                )
                 data = data_handler.get_data(symbol, lookback=max_lookback + 50)
 
                 if len(data) < max_lookback:
@@ -432,16 +442,20 @@ class MLStrategy(Strategy):
                         sigs = generator.generate(data, current_size)
                         all_signals.extend(sigs)
                     except Exception as e:
-                        warnings.warn(f"Generator {generator.name} failed: {e}")
+                        warnings.warn(
+                            f"Generator {generator.name} failed: {e}", stacklevel=2
+                        )
 
                 # Aggregate
                 final_signal = self.aggregator.aggregate(all_signals, current_size)
 
                 if final_signal:
-                    orders.extend(self._signal_to_orders(final_signal, portfolio, data_handler))
+                    orders.extend(
+                        self._signal_to_orders(final_signal, portfolio, data_handler)
+                    )
 
             except Exception as e:
-                warnings.warn(f"Strategy error for {symbol}: {e}")
+                warnings.warn(f"Strategy error for {symbol}: {e}", stacklevel=2)
                 continue
 
         return orders

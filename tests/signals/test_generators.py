@@ -1,13 +1,10 @@
 """Tests for signal generators."""
 
-import numpy as np
-import pandas as pd
-import pytest
 
 from crypto_analysis.signals.base import SignalType
 from crypto_analysis.signals.ml_generators import RandomForestSignalGenerator
-from crypto_analysis.signals.technical import TechnicalPatternGenerator
 from crypto_analysis.signals.statistical import StatisticalArbitrageGenerator
+from crypto_analysis.signals.technical import TechnicalPatternGenerator
 
 
 class TestRandomForestSignalGenerator:

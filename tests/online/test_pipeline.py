@@ -1,11 +1,12 @@
 """Tests for Continuous Learning Pipeline."""
 
+import shutil
+import tempfile
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
-import tempfile
-import shutil
 
 from crypto_analysis.online.pipeline import ContinuousLearningPipeline
 
@@ -112,8 +113,14 @@ class TestContinuousLearningPipeline:
         pipeline.candidate_model = OnlineSignalGenerator(name="Candidate")
         pipeline.ab_test_active = True
 
-        pipeline.model_performance["active"] = {"predictions": [], "returns": [0.01] * 100}
-        pipeline.model_performance["candidate"] = {"predictions": [], "returns": [0.02] * 100}
+        pipeline.model_performance["active"] = {
+            "predictions": [],
+            "returns": [0.01] * 100,
+        }
+        pipeline.model_performance["candidate"] = {
+            "predictions": [],
+            "returns": [0.02] * 100,
+        }
 
         pipeline._evaluate_ab_test()
 

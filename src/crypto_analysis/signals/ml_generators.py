@@ -1,7 +1,6 @@
 """Machine learning-based signal generators."""
 
 import warnings
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -151,7 +150,9 @@ class LSTMSignalGenerator(SignalGenerator):
 
         # Compute volatility median on TRAIN targets only
         vol_values = features_df["target_vol_6"].values
-        train_vol = vol_values[self.sequence_length : self.sequence_length + n_train_seq]
+        train_vol = vol_values[
+            self.sequence_length : self.sequence_length + n_train_seq
+        ]
         self.vol_median_ = float(np.nanmedian(train_vol))
 
         # Create sequences
@@ -160,7 +161,9 @@ class LSTMSignalGenerator(SignalGenerator):
             X.append(scaled_features[i : i + self.sequence_length])
 
             # Target: direction in 6 periods
-            future_return = features_df["target_return_6"].iloc[i + self.sequence_length]
+            future_return = features_df["target_return_6"].iloc[
+                i + self.sequence_length
+            ]
             if future_return > 0.01:
                 y_dir.append([0, 0, 1])  # Up
             elif future_return < -0.01:
@@ -235,7 +238,7 @@ class LSTMSignalGenerator(SignalGenerator):
 
         """
         if not self.is_fitted:
-            warnings.warn(f"[{self.name}] Model not fitted yet!")
+            warnings.warn(f"[{self.name}] Model not fitted yet!", stacklevel=2)
             return []
 
         if len(data) < self.lookback_period:
@@ -264,7 +267,9 @@ class LSTMSignalGenerator(SignalGenerator):
         max_prob = max(down_prob, neutral_prob, up_prob)
 
         if max_prob > 0.6:  # Confidence threshold
-            if up_prob == max_prob and (current_position is None or current_position <= 0):
+            if up_prob == max_prob and (
+                current_position is None or current_position <= 0
+            ):
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -281,7 +286,9 @@ class LSTMSignalGenerator(SignalGenerator):
                         },
                     )
                 )
-            elif down_prob == max_prob and (current_position is None or current_position >= 0):
+            elif down_prob == max_prob and (
+                current_position is None or current_position >= 0
+            ):
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -408,11 +415,15 @@ class RandomForestSignalGenerator(SignalGenerator):
             )
 
         # Store feature importance
-        self.feature_importance = dict(zip(self.feature_cols, self.model.feature_importances_))
+        self.feature_importance = dict(
+            zip(self.feature_cols, self.model.feature_importances_)
+        )
 
         self.is_fitted = True
         print(f"[{self.name}] Training complete!")
-        top_features = sorted(self.feature_importance.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_features = sorted(
+            self.feature_importance.items(), key=lambda x: x[1], reverse=True
+        )[:5]
         print(f"Top 5 features: {top_features}")
 
     def get_features(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -467,7 +478,9 @@ class RandomForestSignalGenerator(SignalGenerator):
 
         # Generate signal if confidence high
         if max(up_prob, down_prob) > 0.65:
-            if up_prob > down_prob and (current_position is None or current_position <= 0):
+            if up_prob > down_prob and (
+                current_position is None or current_position <= 0
+            ):
                 signals.append(
                     Signal(
                         symbol=symbol,
@@ -478,7 +491,9 @@ class RandomForestSignalGenerator(SignalGenerator):
                         metadata={"model_probability": float(up_prob)},
                     )
                 )
-            elif down_prob > up_prob and (current_position is None or current_position >= 0):
+            elif down_prob > up_prob and (
+                current_position is None or current_position >= 0
+            ):
                 signals.append(
                     Signal(
                         symbol=symbol,

@@ -1,16 +1,14 @@
 """Backtesting engine for cryptocurrency trading strategies."""
 
+from typing import Any
+
 import pandas as pd
-from typing import Dict, List, Optional, Any
 from tqdm import tqdm
 
 from crypto_analysis.signals.strategy import (
-    Strategy,
     DataHandler,
     PortfolioManager,
-    Order,
-    Side,
-    OrderType,
+    Strategy,
 )
 from crypto_analysis.utils.analytics import PerformanceAnalyzer
 
@@ -25,7 +23,7 @@ class Backtester:
     def __init__(
         self,
         strategy: Strategy,
-        data: Dict[str, pd.DataFrame],
+        data: dict[str, pd.DataFrame],
         initial_equity: float = 10000.0,
         commission_rate: float = 0.001,
         slippage_pct: float = 0.0005,
@@ -47,9 +45,9 @@ class Backtester:
             commission_rate=commission_rate,
             slippage_pct=slippage_pct,
         )
-        self.equity_history: List[Dict[str, Any]] = []
+        self.equity_history: list[dict[str, Any]] = []
 
-    def run(self, start_idx: int = 100) -> Dict[str, Any]:
+    def run(self, start_idx: int = 100) -> dict[str, Any]:
         """Run the backtest simulation.
 
         Args:
@@ -65,7 +63,7 @@ class Backtester:
 
         print(f"Running backtest from {indices[0]} to {indices[-1]}...")
 
-        for i, timestamp in enumerate(tqdm(indices)):
+        for _i, timestamp in enumerate(tqdm(indices)):
             # 1. Update data handler with data up to current timestamp
             for symbol in self.strategy.symbols:
                 current_view = self.data[symbol].loc[:timestamp]
@@ -88,20 +86,24 @@ class Backtester:
                     "timestamp": timestamp,
                     "equity": total_equity,
                     "cash": self.portfolio.cash,
-                    "positions": {s: p.size for s, p in self.portfolio.positions.items()},
+                    "positions": {
+                        s: p.size for s, p in self.portfolio.positions.items()
+                    },
                 }
             )
 
         return self._calculate_results()
 
-    def _calculate_results(self) -> Dict[str, Any]:
+    def _calculate_results(self) -> dict[str, Any]:
         """Calculate performance metrics from equity history."""
         if not self.equity_history:
             return {}
 
         history_df = pd.DataFrame(self.equity_history).set_index("timestamp")
 
-        metrics = PerformanceAnalyzer.calculate_metrics(history_df["equity"], self.portfolio.orders)
+        metrics = PerformanceAnalyzer.calculate_metrics(
+            history_df["equity"], self.portfolio.orders
+        )
 
         results = {
             **metrics,

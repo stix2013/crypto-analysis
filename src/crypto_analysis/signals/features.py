@@ -98,8 +98,12 @@ class FeatureEngineer:
 
         # Body size
         data["body_size"] = abs(data["close"] - data["open"]) / data["open"]
-        data["upper_shadow"] = (data["high"] - data[["close", "open"]].max(axis=1)) / data["open"]
-        data["lower_shadow"] = (data[["close", "open"]].min(axis=1) - data["low"]) / data["open"]
+        data["upper_shadow"] = (
+            data["high"] - data[["close", "open"]].max(axis=1)
+        ) / data["open"]
+        data["lower_shadow"] = (
+            data[["close", "open"]].min(axis=1) - data["low"]
+        ) / data["open"]
 
         # Gap analysis
         data["gap"] = (data["open"] - data["close"].shift(1)) / data["close"].shift(1)
@@ -141,9 +145,9 @@ class FeatureEngineer:
 
         # VWAP
         typical_price = (data["high"] + data["low"] + data["close"]) / 3
-        data["vwap"] = (typical_price * data["volume"]).rolling(20).sum() / data["volume"].rolling(
-            20
-        ).sum()
+        data["vwap"] = (typical_price * data["volume"]).rolling(20).sum() / data[
+            "volume"
+        ].rolling(20).sum()
         data["vwap_distance"] = (data["close"] - data["vwap"]) / data["vwap"]
 
         return data
@@ -163,9 +167,9 @@ class FeatureEngineer:
         """
         # Standard volatility
         for window in [5, 10, 20, 50]:
-            data[f"volatility_{window}"] = data["log_returns"].rolling(window).std() * np.sqrt(
-                365 * 24
-            )
+            data[f"volatility_{window}"] = data["log_returns"].rolling(
+                window
+            ).std() * np.sqrt(365 * 24)
 
         # True Range and ATR
         tr1 = data["high"] - data["low"]
@@ -192,7 +196,9 @@ class FeatureEngineer:
         # Choppiness Index
         tr_sum = data["true_range"].rolling(14).sum()
         price_range = data["high"].rolling(14).max() - data["low"].rolling(14).min()
-        data["choppiness_14"] = 100 * np.log10(tr_sum / (price_range + 1e-10)) / np.log10(14)
+        data["choppiness_14"] = (
+            100 * np.log10(tr_sum / (price_range + 1e-10)) / np.log10(14)
+        )
 
         return data
 
@@ -213,7 +219,9 @@ class FeatureEngineer:
         # Moving averages
         for ma in [7, 14, 21, 50, 200]:
             data[f"ma_{ma}"] = data["close"].rolling(ma).mean()
-            data[f"ma_{ma}_slope"] = data[f"ma_{ma}"].diff(5) / data[f"ma_{ma}"].shift(5)
+            data[f"ma_{ma}_slope"] = data[f"ma_{ma}"].diff(5) / data[f"ma_{ma}"].shift(
+                5
+            )
             data[f"close_ma_{ma}_ratio"] = data["close"] / data[f"ma_{ma}"]
 
         # Moving average crossovers
@@ -282,25 +290,31 @@ class FeatureEngineer:
         data["stoch_d"] = data["stoch_k"].rolling(window=3).mean()
 
         # Williams %R
-        data["williams_r"] = -100 * (high_max - data["close"]) / (high_max - low_min + 1e-10)
+        data["williams_r"] = (
+            -100 * (high_max - data["close"]) / (high_max - low_min + 1e-10)
+        )
 
         # Money Flow Index (MFI)
         typical_price = (data["high"] + data["low"] + data["close"]) / 3
         money_flow = typical_price * data["volume"]
         positive_flow = (
-            money_flow.where(typical_price > typical_price.shift(1), 0).rolling(14).sum()
+            money_flow.where(typical_price > typical_price.shift(1), 0)
+            .rolling(14)
+            .sum()
         )
         negative_flow = (
-            money_flow.where(typical_price < typical_price.shift(1), 0).rolling(14).sum()
+            money_flow.where(typical_price < typical_price.shift(1), 0)
+            .rolling(14)
+            .sum()
         )
         mfr = positive_flow / (negative_flow + 1e-10)
         data["mfi_14"] = 100 - (100 / (1 + mfr))
 
         # Rate of Change
         for period in [5, 10, 20]:
-            data[f"roc_{period}"] = (data["close"] - data["close"].shift(period)) / data[
-                "close"
-            ].shift(period)
+            data[f"roc_{period}"] = (
+                data["close"] - data["close"].shift(period)
+            ) / data["close"].shift(period)
 
         return data
 
@@ -315,7 +329,9 @@ class FeatureEngineer:
 
         """
         # Bid-ask spread estimation (if no order book data)
-        data["spread_est"] = 2 * (data["high"] - data["low"]) / (data["high"] + data["low"])
+        data["spread_est"] = (
+            2 * (data["high"] - data["low"]) / (data["high"] + data["low"])
+        )
 
         # Intraday volatility patterns
         data["intraday_range"] = (data["high"] - data["low"]) / data["open"]
@@ -354,7 +370,9 @@ class FeatureEngineer:
             #     "Time features may not be meaningful."
             # )
             # Create a dummy datetime index for calculations
-            dummy_index = pd.to_datetime(range(len(data)), unit="h", origin="2000-01-01")
+            dummy_index = pd.to_datetime(
+                range(len(data)), unit="h", origin="2000-01-01"
+            )
             # Use the dummy index for calculations, but don't modify the original data's index
             temp_data_for_time_features = data.copy()
             temp_data_for_time_features.index = dummy_index
@@ -395,14 +413,20 @@ class FeatureEngineer:
 
         for period in forward_periods:
             # Future returns
-            data[f"target_return_{period}"] = data["close"].shift(-period) / data["close"] - 1
+            data[f"target_return_{period}"] = (
+                data["close"].shift(-period) / data["close"] - 1
+            )
 
             # Binary direction
-            data[f"target_direction_{period}"] = (data[f"target_return_{period}"] > 0).astype(int)
+            data[f"target_direction_{period}"] = (
+                data[f"target_return_{period}"] > 0
+            ).astype(int)
 
             # Volatility regime — forward-looking vol over next `period` bars
             # Use .rolling() on future-shifted returns to get std of [i+1 .. i+period]
-            data[f"target_vol_{period}"] = data["log_returns"].shift(-period).rolling(period).std()
+            data[f"target_vol_{period}"] = (
+                data["log_returns"].shift(-period).rolling(period).std()
+            )
 
         return data
 

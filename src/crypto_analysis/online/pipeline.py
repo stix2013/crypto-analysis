@@ -2,7 +2,7 @@
 
 import pickle
 import random
-from collections import defaultdict, deque
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -99,7 +99,9 @@ class ContinuousLearningPipeline:
             signals = self.active_model.generate(data)
             return signals, "active"
 
-    def update_performance(self, model_type: str, prediction: float, actual_return: float) -> None:
+    def update_performance(
+        self, model_type: str, prediction: float, actual_return: float
+    ) -> None:
         """Track model performance for comparison.
 
         Args:
@@ -113,13 +115,18 @@ class ContinuousLearningPipeline:
         self.model_performance[model_type]["predictions"].append(prediction)
         self.model_performance[model_type]["returns"].append(actual_return)
 
-        if self.ab_test_active and len(self.model_performance["candidate"]["returns"]) > 100:
+        if (
+            self.ab_test_active
+            and len(self.model_performance["candidate"]["returns"]) > 100
+        ):
             self._evaluate_ab_test()
 
     def _evaluate_ab_test(self) -> None:
         """Determine if candidate model should be promoted."""
         active_returns = np.array(self.model_performance["active"]["returns"][-100:])
-        candidate_returns = np.array(self.model_performance["candidate"]["returns"][-100:])
+        candidate_returns = np.array(
+            self.model_performance["candidate"]["returns"][-100:]
+        )
 
         active_sharpe = active_returns.mean() / (active_returns.std() + 1e-10)
         candidate_sharpe = candidate_returns.mean() / (candidate_returns.std() + 1e-10)

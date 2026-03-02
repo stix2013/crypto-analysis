@@ -60,7 +60,9 @@ class AdaptiveLearningRate:
             Updated learning rate
         """
         self.loss_history.append(recent_loss)
-        self.volatility_estimate = 0.9 * self.volatility_estimate + 0.1 * market_volatility
+        self.volatility_estimate = (
+            0.9 * self.volatility_estimate + 0.1 * market_volatility
+        )
 
         self.lr_history.append(self.current_lr)
 
@@ -69,7 +71,9 @@ class AdaptiveLearningRate:
 
         recent_mean = np.mean(list(self.loss_history)[-5:])
         older_mean = (
-            np.mean(list(self.loss_history)[:5]) if len(self.loss_history) >= 10 else recent_mean
+            np.mean(list(self.loss_history)[:5])
+            if len(self.loss_history) >= 10
+            else recent_mean
         )
 
         loss_trend = recent_mean - older_mean

@@ -88,7 +88,9 @@ class StatisticalArbitrageGenerator(SignalGenerator):
         z_score = (current - sma) / (std + 1e-10)
 
         # Check for extreme deviation
-        if z_score < -self.std_threshold and (current_position is None or current_position <= 0):
+        if z_score < -self.std_threshold and (
+            current_position is None or current_position <= 0
+        ):
             signals.append(
                 Signal(
                     symbol=symbol,
@@ -103,7 +105,9 @@ class StatisticalArbitrageGenerator(SignalGenerator):
                     },
                 )
             )
-        elif z_score > self.std_threshold and (current_position is None or current_position >= 0):
+        elif z_score > self.std_threshold and (
+            current_position is None or current_position >= 0
+        ):
             signals.append(
                 Signal(
                     symbol=symbol,

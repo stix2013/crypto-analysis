@@ -26,10 +26,14 @@ def main() -> None:
         help="Path to trained model (.joblib file)",
     )
     parser.add_argument(
-        "--symbol", default=os.environ.get("PREDICT_SYMBOL", "ETHUSDT"), help="Trading pair symbol"
+        "--symbol",
+        default=os.environ.get("PREDICT_SYMBOL", "ETHUSDT"),
+        help="Trading pair symbol",
     )
     parser.add_argument(
-        "--interval", default=os.environ.get("PREDICT_INTERVAL", "15m"), help="Kline interval"
+        "--interval",
+        default=os.environ.get("PREDICT_INTERVAL", "15m"),
+        help="Kline interval",
     )
     parser.add_argument(
         "--bars",
@@ -37,7 +41,9 @@ def main() -> None:
         default=int(os.environ.get("PREDICT_BARS", 200)),
         help="Number of recent bars",
     )
-    parser.add_argument("--output", type=str, default=None, help="Output CSV file for signals")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output CSV file for signals"
+    )
     args = parser.parse_args()
 
     model_path = Path(args.model)
@@ -131,7 +137,9 @@ def main() -> None:
                 pass
 
             try:
-                debug_preds["pa"] = generator.pa_classifier.predict(current_point)[0] * 2 - 1
+                debug_preds["pa"] = (
+                    generator.pa_classifier.predict(current_point)[0] * 2 - 1
+                )
             except:
                 pass
 
@@ -140,7 +148,9 @@ def main() -> None:
 
             available_weights = {m: generator.model_weights[m] for m in debug_preds}
             total_w = sum(available_weights.values()) or 1.0
-            ensemble = sum(debug_preds[m] * (available_weights[m] / total_w) for m in debug_preds)
+            ensemble = sum(
+                debug_preds[m] * (available_weights[m] / total_w) for m in debug_preds
+            )
 
             print("  No signals (below threshold)")
             print(f"    Regime: {regime.name if regime else 'unknown'}")

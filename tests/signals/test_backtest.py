@@ -2,17 +2,16 @@
 
 import numpy as np
 import pandas as pd
-import pytest
+
 from crypto_analysis.signals.backtest import Backtester
 from crypto_analysis.signals.strategy import (
-    Strategy,
     DataHandler,
-    PortfolioManager,
     Order,
-    Side,
     OrderType,
+    PortfolioManager,
+    Side,
+    Strategy,
 )
-from crypto_analysis.signals.base import Signal, SignalType
 
 
 class DummyStrategy(Strategy):
@@ -100,7 +99,9 @@ class TestBacktester:
     def test_backtester_short_pnl(self):
         """Test that short PnL is calculated correctly in portfolio equity."""
         data_handler = DataHandler()
-        portfolio = PortfolioManager(initial_equity=10000.0, commission_rate=0, slippage_pct=0)
+        portfolio = PortfolioManager(
+            initial_equity=10000.0, commission_rate=0, slippage_pct=0
+        )
 
         # 1. Load data where price goes DOWN
         df = pd.DataFrame(
@@ -151,7 +152,9 @@ class TestBacktester:
     def test_stop_loss_trigger(self):
         """Test that Stop-Loss correctly triggers an exit."""
         data_handler = DataHandler()
-        portfolio = PortfolioManager(initial_equity=10000.0, commission_rate=0, slippage_pct=0)
+        portfolio = PortfolioManager(
+            initial_equity=10000.0, commission_rate=0, slippage_pct=0
+        )
 
         # 1. Price goes DOWN (against long)
         df = pd.DataFrame(
@@ -164,7 +167,9 @@ class TestBacktester:
         data_handler.load_data("BTC", df.iloc[:1])
 
         # 2. Enter long with 2% SL
-        order = Order("BTC", Side.BUY, 10, OrderType.MARKET, df.index[0], stop_loss=98.0)
+        order = Order(
+            "BTC", Side.BUY, 10, OrderType.MARKET, df.index[0], stop_loss=98.0
+        )
         portfolio.execute_order(order, data_handler)
 
         assert len(portfolio.positions) == 1

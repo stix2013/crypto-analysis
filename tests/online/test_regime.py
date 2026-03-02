@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from crypto_analysis.online.detection.regime import RegimeDetector
 
