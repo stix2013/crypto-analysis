@@ -158,7 +158,7 @@ class SignalAggregator:
         best_type, count = votes.most_common(1)[0]
 
         # Need majority
-        if count < len(signals) / 2:
+        if count <= len(signals) / 2:
             return None
 
         best_signals = [s for s in signals if s.signal_type == best_type]

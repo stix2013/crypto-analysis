@@ -62,25 +62,28 @@ class AdaptiveLearningRate:
         self.loss_history.append(recent_loss)
         self.volatility_estimate = 0.9 * self.volatility_estimate + 0.1 * market_volatility
 
+        self.lr_history.append(self.current_lr)
+
         if len(self.loss_history) < 10:
             return self.current_lr
 
-        recent_mean = np.mean(list(self.loss_history)[-10:])
+        recent_mean = np.mean(list(self.loss_history)[-5:])
         older_mean = (
-            np.mean(list(self.loss_history)[:10]) if len(self.loss_history) >= 20 else recent_mean
+            np.mean(list(self.loss_history)[:5]) if len(self.loss_history) >= 10 else recent_mean
         )
 
         loss_trend = recent_mean - older_mean
 
         if loss_trend > 0:
-            self.current_lr *= 0.95
+            self.current_lr *= 0.98  # More subtle adjustment
         elif loss_trend < -0.01:
             self.current_lr *= 1.02
 
-        vol_factor = 0.02 / (self.volatility_estimate + 0.01)
-        self.current_lr *= np.clip(vol_factor, 0.5, 2.0)
+        # Use 0.03 as baseline (0.02 + 0.01) so vol_factor is 1.0 when vol is 0.02
+        vol_factor = 0.03 / (self.volatility_estimate + 0.01)
+        # Apply volatility adjustment more subtly
+        self.current_lr *= 0.9 + 0.1 * np.clip(vol_factor, 0.5, 2.0)
 
         self.current_lr = np.clip(self.current_lr, self.min_lr, self.max_lr)
 
-        self.lr_history.append(self.current_lr)
         return self.current_lr

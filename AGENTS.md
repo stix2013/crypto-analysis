@@ -142,6 +142,21 @@ crypto-analysis/
 └── AGENTS.md
 ```
 
+## Agent Skills
+
+### Crypto Trader Skill
+The `crypto-trader` skill is available in this workspace. It provides specialized knowledge and workflows for:
+- **Market Analysis**: Fetching and processing data from Binance.
+- **Indicator Implementation**: Creating new technical indicators following the project's patterns.
+- **Strategy Development**: Building and aggregating signal generators.
+- **Backtesting**: Running simulations using the `PortfolioManager`.
+- **Online Learning**: Utilizing adaptive models for real-time updates.
+
+To enable this skill in your session, run:
+```bash
+/skills reload
+```
+
 ### Indicator Implementation Pattern
 ```python
 from abc import ABC, abstractmethod

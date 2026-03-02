@@ -1,6 +1,5 @@
 """Online Neural Network with Elastic Weight Consolidation."""
 
-
 import numpy as np
 
 try:
@@ -155,6 +154,16 @@ class OnlineNeuralNetwork(OnlineModel):
             self.optimal_params[name] = param.data.clone()
 
         self.task_count += 1
+
+    def set_learning_rate(self, lr: float) -> None:
+        """Update the optimizer learning rate.
+
+        Args:
+            lr: New learning rate value
+        """
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+        self.lr = lr
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Make predictions on input data.

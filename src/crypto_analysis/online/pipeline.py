@@ -42,7 +42,7 @@ class ContinuousLearningPipeline:
         self.candidate_model: OnlineSignalGenerator | None = None
         self.data_buffer: deque[pd.DataFrame] = deque(maxlen=10000)
 
-        self.model_performance = defaultdict(lambda: {"predictions": [], "returns": []})
+        self.model_performance: dict[str, dict[str, list[float]]] = {}
         self.ab_test_active = False
         self.ab_split_ratio = 0.1
 
@@ -107,6 +107,9 @@ class ContinuousLearningPipeline:
             prediction: Model prediction
             actual_return: Actual return observed
         """
+        if model_type not in self.model_performance:
+            self.model_performance[model_type] = {"predictions": [], "returns": []}
+
         self.model_performance[model_type]["predictions"].append(prediction)
         self.model_performance[model_type]["returns"].append(actual_return)
 

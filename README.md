@@ -9,7 +9,7 @@ Signal generation system integrating machine learning, technical analysis, and s
 - **Statistical Arbitrage**: Bollinger Bands and RSI-based signals
 - **Signal Aggregation**: Combine multiple generators with weighted confidence, majority vote, or best confidence methods
 - **Feature Engineering**: Comprehensive technical indicators and market microstructure features
-- **Backtesting Framework**: Basic strategy and portfolio management classes
+- **Backtesting Framework**: Robust event-driven engine with realistic execution (slippage/fees) and performance metrics
 
 ## Installation
 

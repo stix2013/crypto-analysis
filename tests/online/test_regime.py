@@ -16,7 +16,7 @@ def create_test_data(trend: str = "ranging", n_points: int = 150) -> pd.DataFram
     elif trend == "trending_down":
         prices = 100 + np.cumsum(np.random.randn(n_points) - 0.01)
     elif trend == "volatile":
-        prices = 100 + np.cumsum(np.random.randn(n_points) * 0.05)
+        prices = 100 + np.cumsum(np.random.randn(n_points) * 1.5)
     elif trend == "crash":
         prices = 100 * np.exp(-0.01 * np.arange(n_points))
     else:

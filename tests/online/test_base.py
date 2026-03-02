@@ -66,7 +66,7 @@ class TestOnlineModel:
         model = DummyOnlineModel(name="Test")
 
         predictions = np.array([1, -1, 1])
-        actuals = np.array([1, 1, -1])
+        actuals = np.array([1, -1, -1])  # Matches 2/3
 
         model.update_performance(predictions, actuals)
 

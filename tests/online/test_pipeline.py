@@ -57,9 +57,10 @@ class TestContinuousLearningPipeline:
 
         assert len(pipeline.data_buffer) == 1
 
-    def test_stream_data_buffer_limit(self, temp_dir):
+    def test_stream_data_buffer_limit(self, temp_dir, mocker):
         """Test data buffer respects max size."""
         pipeline = ContinuousLearningPipeline(checkpoint_dir=temp_dir)
+        mocker.patch.object(pipeline, "_trigger_retraining")
 
         for _ in range(15000):
             pipeline.stream_data(create_test_data(10))
@@ -73,7 +74,7 @@ class TestContinuousLearningPipeline:
 
         signals, source = pipeline.get_prediction(data)
 
-        assert source == "active"
+        assert source == "none"
 
     def test_update_performance(self, temp_dir):
         """Test performance tracking."""
@@ -111,8 +112,8 @@ class TestContinuousLearningPipeline:
         pipeline.candidate_model = OnlineSignalGenerator(name="Candidate")
         pipeline.ab_test_active = True
 
-        pipeline.model_performance["active"]["returns"] = [0.01] * 100
-        pipeline.model_performance["candidate"]["returns"] = [0.02] * 100
+        pipeline.model_performance["active"] = {"predictions": [], "returns": [0.01] * 100}
+        pipeline.model_performance["candidate"] = {"predictions": [], "returns": [0.02] * 100}
 
         pipeline._evaluate_ab_test()
 

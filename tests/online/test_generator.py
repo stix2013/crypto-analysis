@@ -44,7 +44,7 @@ class TestOnlineSignalGenerator:
     def test_get_features(self):
         """Test feature extraction."""
         generator = OnlineSignalGenerator(sequence_length=30)
-        data = create_test_data(200)
+        data = create_test_data(500)
 
         features = generator.get_features(data)
 
@@ -74,7 +74,7 @@ class TestOnlineSignalGenerator:
     def test_generate_without_ml_libs(self):
         """Test generate works without TensorFlow/PyTorch."""
         generator = OnlineSignalGenerator(sequence_length=30)
-        data = create_test_data(200)
+        data = create_test_data(500)
 
         generator.fit(data)
 

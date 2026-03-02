@@ -10,28 +10,52 @@ Outputs:
 """
 
 import argparse
+import os
 from pathlib import Path
 
 import joblib
 import pandas as pd
+from dotenv import load_dotenv
 
 from crypto_analysis.data import create_client
 from crypto_analysis.online.generator import OnlineSignalGenerator
 
+load_dotenv()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train online learning model on crypto futures")
-    parser.add_argument("symbol", help="Trading pair symbol (e.g., ETHUSDT, BTCUSDT)")
-    parser.add_argument("--interval", default="15m", help="Kline interval")
-    parser.add_argument("--bars", type=int, default=5000, help="Number of historical bars")
     parser.add_argument(
-        "--warmup-bars", type=int, default=1000, help="Number of bars for initial training"
+        "symbol",
+        nargs="?",
+        default=os.environ.get("TRAIN_SYMBOL", "ETHUSDT"),
+        help="Trading pair symbol (e.g., ETHUSDT, BTCUSDT)",
+    )
+    parser.add_argument(
+        "--interval", default=os.environ.get("TRAIN_INTERVAL", "15m"), help="Kline interval"
+    )
+    parser.add_argument(
+        "--bars",
+        type=int,
+        default=int(os.environ.get("TRAIN_BARS", 5000)),
+        help="Number of historical bars",
+    )
+    parser.add_argument(
+        "--warmup-bars",
+        type=int,
+        default=int(os.environ.get("TRAIN_WARMUP_BARS", 1000)),
+        help="Number of bars for initial training",
     )
     parser.add_argument("--output", type=str, default=None, help="Output CSV file for signals")
     parser.add_argument(
         "--model-output", type=str, default=None, help="Output file for trained model"
     )
-    parser.add_argument("--sequence-length", type=int, default=60, help="Sequence length for LSTM")
+    parser.add_argument(
+        "--sequence-length",
+        type=int,
+        default=int(os.environ.get("TRAIN_SEQUENCE_LENGTH", 60)),
+        help="Sequence length for LSTM",
+    )
     args = parser.parse_args()
 
     if args.output is None:

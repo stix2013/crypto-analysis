@@ -126,6 +126,18 @@ class OnlineLSTM(OnlineModel):
             return np.zeros((len(X), 1))
         return self.model.predict(X, verbose=0)
 
+    def set_learning_rate(self, lr: float) -> None:
+        """Update the optimizer learning rate.
+
+        Args:
+            lr: New learning rate value
+        """
+        if self.model is not None:
+            import tensorflow.keras.backend as K
+
+            K.set_value(self.model.optimizer.learning_rate, lr)
+        self.lr = lr
+
     def reset_states(self) -> None:
         """Reset LSTM hidden states."""
         if self.model is not None:

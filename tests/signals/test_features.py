@@ -24,8 +24,8 @@ class TestFeatureEngineer:
         # Should have more columns than original
         assert len(features.columns) > len(sample_ohlcv_data.columns)
 
-        # Should have returns
-        assert "returns" in features.columns
+        # Should have log_returns
+        assert "log_returns" in features.columns
 
         # Should drop NaN rows
         assert not features.isnull().any().any()
@@ -35,7 +35,6 @@ class TestFeatureEngineer:
         fe = FeatureEngineer()
         data = fe._add_price_features(minimal_ohlcv_data)
 
-        assert "returns" in data.columns
         assert "log_returns" in data.columns
         assert "close_position" in data.columns
         assert "body_size" in data.columns
@@ -43,7 +42,8 @@ class TestFeatureEngineer:
     def test_volume_features(self, minimal_ohlcv_data):
         """Test volume features."""
         fe = FeatureEngineer()
-        data = fe._add_volume_features(minimal_ohlcv_data)
+        data = fe._add_price_features(minimal_ohlcv_data)
+        data = fe._add_volume_features(data)
 
         assert "volume_ma_10" in data.columns
         assert "volume_ma_30" in data.columns
@@ -53,7 +53,8 @@ class TestFeatureEngineer:
     def test_volatility_features(self, minimal_ohlcv_data):
         """Test volatility features."""
         fe = FeatureEngineer()
-        data = fe._add_volatility_features(minimal_ohlcv_data)
+        data = fe._add_price_features(minimal_ohlcv_data)
+        data = fe._add_volatility_features(data)
 
         assert "volatility_5" in data.columns
         assert "volatility_20" in data.columns
@@ -63,7 +64,9 @@ class TestFeatureEngineer:
     def test_trend_features(self, minimal_ohlcv_data):
         """Test trend features."""
         fe = FeatureEngineer()
-        data = fe._add_trend_features(minimal_ohlcv_data)
+        data = fe._add_price_features(minimal_ohlcv_data)
+        data = fe._add_volatility_features(data)
+        data = fe._add_trend_features(data)
 
         assert "ma_7" in data.columns
         assert "ma_21" in data.columns
@@ -85,15 +88,17 @@ class TestFeatureEngineer:
         fe = FeatureEngineer()
         data = fe._add_time_features(minimal_ohlcv_data)
 
-        assert "hour" in data.columns
-        assert "day_of_week" in data.columns
         assert "hour_sin" in data.columns
         assert "hour_cos" in data.columns
+        assert "dow_sin" in data.columns
+        assert "dow_cos" in data.columns
+        assert "is_weekend" in data.columns
 
     def test_target_generation(self, minimal_ohlcv_data):
         """Test target variable generation."""
         fe = FeatureEngineer()
         data = minimal_ohlcv_data.copy()
+        data = fe._add_price_features(data)
         data = fe._add_targets(data)
 
         assert "target_return_1" in data.columns

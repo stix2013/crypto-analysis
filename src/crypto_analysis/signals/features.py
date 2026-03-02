@@ -88,8 +88,7 @@ class FeatureEngineer:
             - gap: Opening gap from previous close
 
         """
-        # Returns
-        data["returns"] = data["close"].pct_change()
+        # Log Returns
         data["log_returns"] = np.log(data["close"] / data["close"].shift(1))
 
         # Price position within bar
@@ -137,7 +136,7 @@ class FeatureEngineer:
         )
 
         # Price-volume relationship
-        data["volume_price_trend"] = data["volume"] * data["returns"]
+        data["volume_price_trend"] = data["volume"] * data["log_returns"]
         data["obv"] = (np.sign(data["close"].diff()) * data["volume"]).cumsum()
 
         # VWAP
@@ -159,34 +158,41 @@ class FeatureEngineer:
             - atr_ratio: Current TR vs ATR
             - bb_**: Bollinger Bands (middle, upper, lower, position, width)
             - kc_**: Keltner Channels
+            - choppiness_14: Choppiness Index
 
         """
         # Standard volatility
         for window in [5, 10, 20, 50]:
-            data[f"volatility_{window}"] = data["returns"].rolling(window).std() * np.sqrt(365 * 24)
+            data[f"volatility_{window}"] = data["log_returns"].rolling(window).std() * np.sqrt(
+                365 * 24
+            )
 
         # True Range and ATR
-        data["tr1"] = data["high"] - data["low"]
-        data["tr2"] = abs(data["high"] - data["close"].shift(1))
-        data["tr3"] = abs(data["low"] - data["close"].shift(1))
-        data["true_range"] = data[["tr1", "tr2", "tr3"]].max(axis=1)
+        tr1 = data["high"] - data["low"]
+        tr2 = (data["high"] - data["close"].shift(1)).abs()
+        tr3 = (data["low"] - data["close"].shift(1)).abs()
+        data["true_range"] = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
         data["atr_14"] = data["true_range"].rolling(14).mean()
         data["atr_ratio"] = data["true_range"] / data["atr_14"]
 
         # Bollinger Bands
-        data["bb_middle"] = data["close"].rolling(20).mean()
-        data["bb_std"] = data["close"].rolling(20).std()
-        data["bb_upper"] = data["bb_middle"] + 2 * data["bb_std"]
-        data["bb_lower"] = data["bb_middle"] - 2 * data["bb_std"]
+        bb_middle = data["close"].rolling(20).mean()
+        bb_std = data["close"].rolling(20).std()
+        data["bb_upper"] = bb_middle + 2 * bb_std
+        data["bb_lower"] = bb_middle - 2 * bb_std
         data["bb_position"] = (data["close"] - data["bb_lower"]) / (
             data["bb_upper"] - data["bb_lower"] + 1e-10
         )
-        data["bb_width"] = (data["bb_upper"] - data["bb_lower"]) / data["bb_middle"]
+        data["bb_width"] = (data["bb_upper"] - data["bb_lower"]) / bb_middle
 
-        # Keltner Channels
-        data["kc_middle"] = data["close"].rolling(20).mean()
-        data["kc_upper"] = data["kc_middle"] + 2 * data["atr_14"]
-        data["kc_lower"] = data["kc_middle"] - 2 * data["atr_14"]
+        # Keltner Channels (reuse bb_middle — same 20-period SMA)
+        data["kc_upper"] = bb_middle + 2 * data["atr_14"]
+        data["kc_lower"] = bb_middle - 2 * data["atr_14"]
+
+        # Choppiness Index
+        tr_sum = data["true_range"].rolling(14).sum()
+        price_range = data["high"].rolling(14).max() - data["low"].rolling(14).min()
+        data["choppiness_14"] = 100 * np.log10(tr_sum / (price_range + 1e-10)) / np.log10(14)
 
         return data
 
@@ -250,6 +256,7 @@ class FeatureEngineer:
             - stoch_k: Stochastic %K
             - stoch_d: Stochastic %D
             - williams_r: Williams %R
+            - mfi_14: Money Flow Index
             - roc_{5,10,20}: Rate of Change
 
         """
@@ -257,7 +264,7 @@ class FeatureEngineer:
         delta = data["close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
+        rs = gain / (loss + 1e-10)
         data["rsi_14"] = 100 - (100 / (1 + rs))
         data["rsi_slope"] = data["rsi_14"].diff(3)
 
@@ -276,6 +283,18 @@ class FeatureEngineer:
 
         # Williams %R
         data["williams_r"] = -100 * (high_max - data["close"]) / (high_max - low_min + 1e-10)
+
+        # Money Flow Index (MFI)
+        typical_price = (data["high"] + data["low"] + data["close"]) / 3
+        money_flow = typical_price * data["volume"]
+        positive_flow = (
+            money_flow.where(typical_price > typical_price.shift(1), 0).rolling(14).sum()
+        )
+        negative_flow = (
+            money_flow.where(typical_price < typical_price.shift(1), 0).rolling(14).sum()
+        )
+        mfr = positive_flow / (negative_flow + 1e-10)
+        data["mfi_14"] = 100 - (100 / (1 + mfr))
 
         # Rate of Change
         for period in [5, 10, 20]:
@@ -327,18 +346,32 @@ class FeatureEngineer:
             - is_weekend: Weekend indicator
 
         """
-        data["hour"] = data.index.hour
-        data["day_of_week"] = data.index.dayofweek
-        data["month"] = data.index.month
+        # Ensure index is DatetimeIndex for time features
+        if not isinstance(data.index, pd.DatetimeIndex):
+            # Create a dummy DatetimeIndex if the original is not one
+            # print(
+            #     "Warning: DataFrame index is not DatetimeIndex. "
+            #     "Time features may not be meaningful."
+            # )
+            # Create a dummy datetime index for calculations
+            dummy_index = pd.to_datetime(range(len(data)), unit="h", origin="2000-01-01")
+            # Use the dummy index for calculations, but don't modify the original data's index
+            temp_data_for_time_features = data.copy()
+            temp_data_for_time_features.index = dummy_index
+            hour = temp_data_for_time_features.index.hour
+            day_of_week = temp_data_for_time_features.index.dayofweek
+        else:
+            hour = data.index.hour
+            day_of_week = data.index.dayofweek
 
         # Cyclical encoding
-        data["hour_sin"] = np.sin(2 * np.pi * data["hour"] / 24)
-        data["hour_cos"] = np.cos(2 * np.pi * data["hour"] / 24)
-        data["dow_sin"] = np.sin(2 * np.pi * data["day_of_week"] / 7)
-        data["dow_cos"] = np.cos(2 * np.pi * data["day_of_week"] / 7)
+        data["hour_sin"] = np.sin(2 * np.pi * hour / 24)
+        data["hour_cos"] = np.cos(2 * np.pi * hour / 24)
+        data["dow_sin"] = np.sin(2 * np.pi * day_of_week / 7)
+        data["dow_cos"] = np.cos(2 * np.pi * day_of_week / 7)
 
         # Weekend effect (for crypto, weekends often different)
-        data["is_weekend"] = (data["day_of_week"] >= 5).astype(int)
+        data["is_weekend"] = (day_of_week >= 5).astype(int)
 
         return data
 
@@ -367,33 +400,9 @@ class FeatureEngineer:
             # Binary direction
             data[f"target_direction_{period}"] = (data[f"target_return_{period}"] > 0).astype(int)
 
-            # Volatility regime
-            future_vol = data["returns"].shift(-period).rolling(period).std()
-            data[f"target_vol_{period}"] = future_vol
-
-            # Target for classification (strong up, up, neutral, down, strong down)
-            returns = data[f"target_return_{period}"]
-            thresholds = [
-                returns.quantile(0.2),
-                returns.quantile(0.4),
-                returns.quantile(0.6),
-                returns.quantile(0.8),
-            ]
-
-            def classify_return(r: float) -> int:
-                """Classify return into 5 categories."""
-                if r < thresholds[0]:
-                    return 0  # Strong down
-                elif r < thresholds[1]:
-                    return 1  # Down
-                elif r < thresholds[2]:
-                    return 2  # Neutral
-                elif r < thresholds[3]:
-                    return 3  # Up
-                else:
-                    return 4  # Strong up
-
-            data[f"target_class_{period}"] = returns.apply(classify_return)
+            # Volatility regime — forward-looking vol over next `period` bars
+            # Use .rolling() on future-shifted returns to get std of [i+1 .. i+period]
+            data[f"target_vol_{period}"] = data["log_returns"].shift(-period).rolling(period).std()
 
         return data
 

@@ -110,13 +110,18 @@ class LSTMSignalGenerator(SignalGenerator):
         data: pd.DataFrame,
         epochs: int = 50,
         batch_size: int = 32,
+        val_ratio: float = 0.2,
     ) -> None:
-        """Train LSTM on historical data.
+        """Train LSTM on historical data with proper chronological validation.
+
+        Uses a chronological train/val split. The scaler and volatility
+        threshold are fitted on training data only to prevent leakage.
 
         Args:
             data: OHLCV DataFrame
             epochs: Number of training epochs
             batch_size: Training batch size
+            val_ratio: Fraction of data reserved for validation
 
         """
         print(f"[{self.name}] Preparing data...")
@@ -125,14 +130,33 @@ class LSTMSignalGenerator(SignalGenerator):
         features_df = self.feature_engineer.create_features(data, include_targets=True)
         self.feature_cols = self.feature_engineer.get_feature_columns(features_df)
 
-        # Scale features
         feature_data = features_df[self.feature_cols].values
-        self.scaler.fit(feature_data)
+        n_total = len(feature_data)
+        n_sequences = n_total - self.sequence_length - 6
+
+        if n_sequences <= 0:
+            raise ValueError(
+                f"Not enough data for sequences: {n_total} rows, "
+                f"need at least {self.sequence_length + 7}"
+            )
+
+        # Chronological split point (based on sequence count)
+        n_train_seq = int((1 - val_ratio) * n_sequences)
+        # Index in feature_data where training sequences end
+        train_end_idx = n_train_seq + self.sequence_length
+
+        # Fit scaler on TRAIN data only to prevent leakage
+        self.scaler.fit(feature_data[:train_end_idx])
         scaled_features = self.scaler.transform(feature_data)
+
+        # Compute volatility median on TRAIN targets only
+        vol_values = features_df["target_vol_6"].values
+        train_vol = vol_values[self.sequence_length : self.sequence_length + n_train_seq]
+        self.vol_median_ = float(np.nanmedian(train_vol))
 
         # Create sequences
         X, y_dir, y_vol = [], [], []
-        for i in range(len(scaled_features) - self.sequence_length - 6):
+        for i in range(n_sequences):
             X.append(scaled_features[i : i + self.sequence_length])
 
             # Target: direction in 6 periods
@@ -144,21 +168,23 @@ class LSTMSignalGenerator(SignalGenerator):
             else:
                 y_dir.append([0, 1, 0])  # Neutral
 
-            # Target: high volatility regime
-            future_vol = features_df["target_vol_6"].iloc[i + self.sequence_length]
-            y_vol.append(1 if future_vol > features_df["target_vol_6"].median() else 0)
+            # Target: binarize vol using train-only median
+            future_vol = vol_values[i + self.sequence_length]
+            y_vol.append(1 if future_vol > self.vol_median_ else 0)
 
         X = np.array(X)
         y_dir = np.array(y_dir)
         y_vol = np.array(y_vol)
 
-        # Split train/val
-        split = int(0.8 * len(X))
-        X_train, X_val = X[:split], X[split:]
-        y_dir_train, y_dir_val = y_dir[:split], y_dir[split:]
-        y_vol_train, y_vol_val = y_vol[:split], y_vol[split:]
+        # Chronological train/val split
+        X_train, X_val = X[:n_train_seq], X[n_train_seq:]
+        y_dir_train, y_dir_val = y_dir[:n_train_seq], y_dir[n_train_seq:]
+        y_vol_train, y_vol_val = y_vol[:n_train_seq], y_vol[n_train_seq:]
 
-        print(f"[{self.name}] Training on {len(X_train)} sequences...")
+        print(
+            f"[{self.name}] Training on {len(X_train)} sequences, "
+            f"validating on {len(X_val)} sequences"
+        )
 
         if self.model is None:
             self.n_features = X.shape[2]
@@ -329,11 +355,15 @@ class RandomForestSignalGenerator(SignalGenerator):
         self.scaler = StandardScaler()
         self.feature_cols: list[str] = []
 
-    def fit(self, data: pd.DataFrame) -> None:
-        """Train Random Forest classifier.
+    def fit(self, data: pd.DataFrame, val_ratio: float = 0.2) -> None:
+        """Train Random Forest classifier with chronological train/val split.
+
+        Uses a chronological split so the model is evaluated on unseen
+        future data. The scaler is fitted on training data only.
 
         Args:
             data: OHLCV DataFrame
+            val_ratio: Fraction of data reserved for validation
 
         """
         print(f"[{self.name}] Training Random Forest...")
@@ -347,18 +377,35 @@ class RandomForestSignalGenerator(SignalGenerator):
         features_df.loc[features_df["target_return_3"] > 0.005, "target_binary"] = 1
         features_df.loc[features_df["target_return_3"] < -0.005, "target_binary"] = -1
 
-        # Remove neutral cases for training
-        train_data = features_df[features_df["target_binary"] != 0].copy()
+        # Chronological train/val split BEFORE filtering neutrals
+        split_idx = int((1 - val_ratio) * len(features_df))
+        train_all = features_df.iloc[:split_idx]
+        val_all = features_df.iloc[split_idx:]
 
-        X = train_data[self.feature_cols].values
-        y = (train_data["target_binary"] > 0).astype(int).values
+        # Remove neutral cases (only from the data we train/evaluate on)
+        train_data = train_all[train_all["target_binary"] != 0].copy()
+        val_data = val_all[val_all["target_binary"] != 0].copy()
 
-        # Scale
-        self.scaler.fit(X)
-        X_scaled = self.scaler.transform(X)
+        X_train = train_data[self.feature_cols].values
+        y_train = (train_data["target_binary"] > 0).astype(int).values
 
-        # Train
-        self.model.fit(X_scaled, y)
+        # Fit scaler on TRAIN data only
+        self.scaler.fit(X_train)
+        X_train_scaled = self.scaler.transform(X_train)
+
+        # Train on train set only
+        self.model.fit(X_train_scaled, y_train)
+
+        # Evaluate on validation set
+        if len(val_data) > 0:
+            X_val = val_data[self.feature_cols].values
+            y_val = (val_data["target_binary"] > 0).astype(int).values
+            X_val_scaled = self.scaler.transform(X_val)
+            val_accuracy = self.model.score(X_val_scaled, y_val)
+            print(
+                f"[{self.name}] Validation accuracy: {val_accuracy:.4f} "
+                f"(train={len(train_data)}, val={len(val_data)} samples)"
+            )
 
         # Store feature importance
         self.feature_importance = dict(zip(self.feature_cols, self.model.feature_importances_))

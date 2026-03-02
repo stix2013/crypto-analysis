@@ -96,6 +96,14 @@ class OnlineSignalGenerator(SignalGenerator):
         self.prediction_buffer: deque[dict[str, Any]] = deque(maxlen=100)
         self.error_buffer: deque[float] = deque(maxlen=50)
 
+        # Per-model error tracking for adaptive weight updates
+        self.model_errors: dict[str, deque[float]] = {
+            "lstm": deque(maxlen=50),
+            "nn": deque(maxlen=50),
+            "rf": deque(maxlen=50),
+            "pa": deque(maxlen=50),
+        }
+
         self.model_weights: dict[str, float] = {
             "lstm": 0.25,
             "nn": 0.25,
@@ -212,40 +220,48 @@ class OnlineSignalGenerator(SignalGenerator):
         current_sequence = scaled[-self.sequence_length :].reshape(1, self.sequence_length, -1)
         current_point = scaled[-1:].reshape(1, -1)
 
-        predictions: dict[str, float] = {"lstm": 0.0, "nn": 0.0, "rf": 0.0, "pa": 0.0}
+        predictions: dict[str, float] = {}
 
         if self.lstm is not None:
             try:
                 pred_lstm = self.lstm.predict(current_sequence)[0][0]
                 predictions["lstm"] = pred_lstm
             except Exception:
-                predictions["lstm"] = 0.0
+                pass
 
         if self.nn is not None:
             try:
-                pred_nn = self.nn.predict(current_point)[0]
+                # Scale from [0, 1] to [-1, 1]
+                pred_nn = self.nn.predict(current_point)[0] * 2 - 1
                 predictions["nn"] = pred_nn
             except Exception:
-                predictions["nn"] = 0.0
+                pass
 
         try:
-            pred_rf = self.rf.predict(current_point)[0]
+            # Scale from [0, 1] to [-1, 1]
+            pred_rf = self.rf.predict(current_point)[0] * 2 - 1
             predictions["rf"] = pred_rf
         except Exception:
-            predictions["rf"] = 0.0
+            pass
 
         try:
+            # Already in [-1, 1] range (classes 0, 1 mapped to -1, 1)
             pred_pa = self.pa_classifier.predict(current_point)[0]
             predictions["pa"] = pred_pa * 2 - 1
         except Exception:
-            predictions["pa"] = 0.0
+            pass
 
         self._update_model_weights()
 
-        total_weight = sum(self.model_weights.values())
+        # Only use weights for models that actually produced a prediction
+        available_weights = {
+            m: self.model_weights[m] for m in predictions if m in self.model_weights
+        }
+        total_weight = sum(available_weights.values()) or 1.0
+
         ensemble_pred = sum(
             predictions[model] * (weight / total_weight)
-            for model, weight in self.model_weights.items()
+            for model, weight in available_weights.items()
         )
 
         pred_variance = np.var(list(predictions.values()))
@@ -257,7 +273,23 @@ class OnlineSignalGenerator(SignalGenerator):
             self.samples_since_update = 0
 
         timestamp = data.index[-1]
-        symbol = "BTC"
+        symbol = getattr(data, "symbol", "UNKNOWN")
+        if symbol == "UNKNOWN" and hasattr(data.index, "name") and data.index.name:
+            symbol = data.index.name
+
+        # Try to get symbol from first row if it exists as a column
+        if "symbol" in data.columns:
+            symbol = data.columns.get_loc("symbol")
+            if isinstance(symbol, int):
+                symbol = data["symbol"].iloc[-1]
+
+        # If still unknown, use the name of the generator as a hint or default
+        if symbol == "UNKNOWN":
+            if "_" in self.name:
+                symbol = self.name.split("_")[-1]
+            else:
+                symbol = "BTC"  # Fallback
+
         signals = []
 
         threshold = self._get_regime_threshold(regime)
@@ -299,6 +331,7 @@ class OnlineSignalGenerator(SignalGenerator):
             {
                 "timestamp": timestamp,
                 "prediction": ensemble_pred,
+                "individual_predictions": predictions.copy(),
                 "features": current_sequence if abs(ensemble_pred) > 0.3 else None,
             }
         )
@@ -309,6 +342,9 @@ class OnlineSignalGenerator(SignalGenerator):
         self, data: pd.DataFrame, scaled_features: np.ndarray, last_prediction: float
     ) -> None:
         """Update models with most recent outcome.
+
+        Computes per-model prediction errors for adaptive weight updates
+        and applies the adaptive learning rate to model optimizers.
 
         Args:
             data: Market data
@@ -327,6 +363,13 @@ class OnlineSignalGenerator(SignalGenerator):
         old_price = data["close"].iloc[-6]
         actual_return = (current_price - old_price) / old_price
         actual_direction = np.sign(actual_return)
+
+        # Track per-model errors from stored individual predictions
+        old_individual = old_pred.get("individual_predictions", {})
+        for model_name, model_pred in old_individual.items():
+            if model_name in self.model_errors:
+                error = abs(float(model_pred) - actual_direction)
+                self.model_errors[model_name].append(error)
 
         if self.lstm is not None:
             try:
@@ -352,18 +395,64 @@ class OnlineSignalGenerator(SignalGenerator):
         prediction_error = abs(last_prediction - actual_direction)
         self.error_buffer.append(prediction_error)
 
+        # Compute adaptive LR and apply it to model optimizers
         recent_vol = data["close"].pct_change().iloc[-20:].std()
-        self.lr_scheduler.update(prediction_error, recent_vol)
+        new_lr = self.lr_scheduler.update(prediction_error, recent_vol)
+
+        if self.nn is not None:
+            try:
+                self.nn.set_learning_rate(new_lr)
+            except Exception:
+                pass
+        if self.lstm is not None:
+            try:
+                self.lstm.set_learning_rate(new_lr)
+            except Exception:
+                pass
 
     def _update_model_weights(self) -> None:
-        """Dynamically adjust model weights based on recent performance."""
-        if len(self.error_buffer) < 20:
+        """Dynamically adjust ensemble weights using exponential weighting.
+
+        Models with lower recent error get higher weight. Uses a softmax
+        over inverse mean absolute errors so weights sum to 1.0.
+        Falls back to equal weights when insufficient history exists.
+        """
+        min_samples = 10
+
+        # Need enough per-model error history
+        active_models = {
+            name: errors for name, errors in self.model_errors.items() if len(errors) >= min_samples
+        }
+
+        if not active_models:
             return
 
-        recent_error = np.mean(list(self.error_buffer)[-20:])
+        # Compute mean error per model over recent window
+        mean_errors: dict[str, float] = {}
+        for name, errors in active_models.items():
+            mean_errors[name] = float(np.mean(list(errors)[-20:]))
 
-        if recent_error > 0.4:
-            self.model_weights = dict.fromkeys(self.model_weights, 0.25)
+        # Softmax over inverse errors: lower error → higher weight
+        # Temperature controls how aggressively we differentiate
+        temperature = 0.5
+        inv_errors = {name: 1.0 / (err + 1e-8) for name, err in mean_errors.items()}
+
+        # Compute softmax
+        max_inv = max(inv_errors.values())
+        exp_weights = {
+            name: np.exp((val - max_inv) / temperature) for name, val in inv_errors.items()
+        }
+        total = sum(exp_weights.values())
+
+        for name in exp_weights:
+            self.model_weights[name] = exp_weights[name] / total
+
+        # Models without enough history keep their current weight
+        # but we need to renormalize so weights sum to 1
+        total_weight = sum(self.model_weights.values())
+        if total_weight > 0:
+            for name in self.model_weights:
+                self.model_weights[name] /= total_weight
 
     def _get_regime_threshold(self, regime: MarketRegime) -> float:
         """Adjust signal threshold based on market regime.
