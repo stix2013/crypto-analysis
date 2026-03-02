@@ -1,26 +1,32 @@
 # AGENTS.md - Crypto Analysis Project
 
 ## Project Overview
-Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading.
+Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading. Features adaptive online learning, event-driven backtesting, and advanced risk management (SL/TP, volatility-adjusted sizing).
 
 ## Build/Lint/Test Commands
+
+### Training & Simulation
+```bash
+# Run online learning training pipeline
+./run_training.sh BTCUSDT 1h 5000
+
+# Run prediction/inference with trained model
+python scripts/predict.py model_btcusdt.joblib --symbol BTCUSDT --interval 1h
+```
 
 ### Testing
 ```bash
 # Run all tests
 pytest
 
-# Run single test file
-pytest tests/test_indicators.py
+# Run backtester tests
+pytest tests/signals/test_backtest.py
 
-# Run single test function
-pytest tests/test_indicators.py::test_rsi_calculation -v
+# Run online learning tests
+pytest tests/online/
 
 # Run tests with coverage
 pytest --cov=src --cov-report=term-missing
-
-# Run tests matching pattern
-pytest -k "test_rsi"
 ```
 
 ### Linting & Formatting
@@ -71,8 +77,8 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 # Local application
-from src.indicators.base import Indicator
-from src.signals.registry import SignalRegistry
+from crypto_analysis.indicators.base import Indicator
+from crypto_analysis.signals.registry import SignalRegistry
 ```
 
 ### Naming Conventions
@@ -122,23 +128,27 @@ crypto-analysis/
 ├── src/
 │   └── crypto_analysis/
 │       ├── __init__.py
-│       ├── indicators/        # Technical indicators (RSI, MACD, etc.)
-│       │   ├── __init__.py
-│       │   ├── base.py        # Base class for indicators
-│       │   └── rsi.py
-│       ├── signals/           # Signal generation
-│       │   ├── __init__.py
-│       │   ├── registry.py    # Signal registry
-│       │   └── combinator.py  # Combine multiple signals
-│       ├── ml/                # ML models
-│       ├── statistical/       # Statistical methods
-│       └── utils/             # Utilities
+│       ├── data/              # Binance API client
+│       ├── online/            # Adaptive online learning models & pipelines
+│       │   ├── models/        # OnlineNN, OnlineLSTM, OnlineRF
+│       │   └── detection/     # Regime & Adaptive Learning Rate
+│       ├── signals/           # Core signal generation & aggregation
+│       │   ├── features.py    # Feature engineering (RSI, MFI, etc.)
+│       │   ├── ml_generators.py # LSTM and RF generators
+│       │   ├── strategy.py    # Portfolio, Order, and MLStrategy
+│       │   └── backtest.py    # Event-driven Backtester
+│       └── utils/             # Performance analytics & optimization
+│           ├── analytics.py   # Sharpe, Sortino, Equity curve plotting
+│           └── optimization.py # Parameter grid search
 ├── tests/
-│   ├── __init__.py
-│   ├── indicators/
-│   └── signals/
+│   ├── online/                # Tests for continuous learning pipeline
+│   ├── signals/               # Tests for backtesting & signal logic
+│   └── data/                  # Tests for Binance API fetching
+├── scripts/
+│   ├── train_online.py        # Core training CLI
+│   └── predict.py             # Model inference CLI
+├── run_training.sh            # Training wrapper script
 ├── pyproject.toml
-├── ruff.toml
 └── AGENTS.md
 ```
 
@@ -157,52 +167,48 @@ To enable this skill in your session, run:
 /skills reload
 ```
 
-### Indicator Implementation Pattern
+### Signal Generator Implementation Pattern
 ```python
 from abc import ABC, abstractmethod
 import pandas as pd
 from typing import Optional
 
-class Indicator(ABC):
-    """Base class for all technical indicators."""
-    
-    name: str
-    
-    @abstractmethod
-    def calculate(self, data: pd.DataFrame) -> pd.Series:
-        """Calculate indicator values."""
-        pass
-    
-    def validate(self, data: pd.DataFrame) -> None:
-        """Validate input data has required columns."""
-        required = getattr(self, 'required_columns', [])
-        missing = set(required) - set(data.columns)
-        if missing:
-            raise ValueError(f"Missing required columns: {missing}")
+from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 
-class RSIIndicator(Indicator):
-    name = "rsi"
-    required_columns = ["close"]
+class TechnicalIndicatorGenerator(SignalGenerator):
+    """Example implementation of a technical signal generator."""
     
-    def __init__(self, period: int = 14):
-        self.period = period
+    def __init__(self, name: str, rsi_period: int = 14):
+        super().__init__(name, lookback_period=rsi_period + 50)
+        self.rsi_period = rsi_period
     
-    def calculate(self, data: pd.DataFrame) -> pd.Series:
-        self.validate(data)
-        close = data["close"]
-        delta = close.diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        avg_gain = gain.rolling(window=self.period).mean()
-        avg_loss = loss.rolling(window=self.period).mean()
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
+    def fit(self, data: pd.DataFrame) -> None:
+        # Technical generators often don't need fitting
+        self.is_fitted = True
+    
+    def generate(self, data: pd.DataFrame, current_position: Optional[float] = None) -> list[Signal]:
+        if len(data) < self.lookback_period:
+            return []
+            
+        # Calculation logic using vectorized pandas/numpy
+        # ...
+        
+        return [Signal(
+            symbol="BTCUSDT",
+            signal_type=SignalType.ENTRY_LONG,
+            confidence=0.8,
+            timestamp=data.index[-1],
+            source=self.name
+        )]
+
+    def get_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        # Return features used for generation
+        return pd.DataFrame(...)
 ```
 
 ### Testing Guidelines
 - Use `pytest` with `pytest-mock` for mocking
-- Test file: `tests/indicators/test_rsi.py`
+- Test file: `tests/signals/test_rsi.py`
 - Test class: `TestRSIIndicator`
 - Test function: `test_rsi_values_correct`
 - Use `pandas.testing.assert_series_equal` for Series comparisons
