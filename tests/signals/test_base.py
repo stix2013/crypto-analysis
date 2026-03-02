@@ -1,6 +1,5 @@
 """Tests for base signal classes."""
 
-
 import pandas as pd
 import pytest
 

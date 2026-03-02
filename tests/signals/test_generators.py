@@ -1,6 +1,5 @@
 """Tests for signal generators."""
 
-
 from crypto_analysis.signals.base import SignalType
 from crypto_analysis.signals.ml_generators import RandomForestSignalGenerator
 from crypto_analysis.signals.statistical import StatisticalArbitrageGenerator

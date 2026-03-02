@@ -1,6 +1,5 @@
 """Statistical arbitrage signal generators."""
 
-
 import pandas as pd
 
 from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType

@@ -1,6 +1,5 @@
 """Tests for FeatureEngineer."""
 
-
 from crypto_analysis.signals.features import FeatureEngineer
 
 

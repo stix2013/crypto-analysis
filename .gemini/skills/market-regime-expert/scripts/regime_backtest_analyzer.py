@@ -1,6 +1,5 @@
 """Script to analyze backtest performance broken down by market regime."""
 
-
 import pandas as pd
 
 
