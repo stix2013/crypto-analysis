@@ -133,7 +133,7 @@ def example_usage():
     features = fe.create_features(df.head(200))
     feature_cols = fe.get_feature_columns(features)
     print(f"Generated {len(feature_cols)} features:")
-    for i, col in enumerate(feature_cols[:10]):
+    for _, col in enumerate(feature_cols[:10]):
         print(f"  - {col}")
     print(f"  ... and {len(feature_cols) - 10} more")
 
