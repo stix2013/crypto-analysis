@@ -16,6 +16,16 @@ repos:
       - id: ruff-format
         exclude: ^(\.gemini/|\.opencode/|models/|signals/)
 
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        pass_filenames: false
+        args: [-v, --tb=short, tests/]
+        stages: [pre-commit]
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
