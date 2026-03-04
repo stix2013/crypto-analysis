@@ -29,7 +29,7 @@ class OnlineNeuralNetwork(OnlineModel):
         hidden_dims: List of hidden layer dimensions
         lr: Learning rate
         ewc_lambda: EWC regularization strength
-        device: Computation device (cuda/cpu)
+        device: Computation device (CPU only)
         model: PyTorch neural network
         fisher_matrix: Fisher information for EWC
         optimal_params: Stored optimal parameters
@@ -62,7 +62,7 @@ class OnlineNeuralNetwork(OnlineModel):
         self.hidden_dims = hidden_dims or [128, 64]
         self.lr = lr
         self.ewc_lambda = ewc_lambda
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")
 
         self.model = self._build_network()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)

@@ -69,10 +69,9 @@ class TestOnlineSignalGenerator:
 
         assert signals == []
 
-    @patch("crypto_analysis.online.generator.TF_AVAILABLE", False)
     @patch("crypto_analysis.online.generator.TORCH_AVAILABLE", False)
     def test_generate_without_ml_libs(self):
-        """Test generate works without TensorFlow/PyTorch."""
+        """Test generate works without PyTorch."""
         generator = OnlineSignalGenerator(sequence_length=30)
         data = create_test_data(500)
 

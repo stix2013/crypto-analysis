@@ -1,5 +1,6 @@
 """Online signal generator with real-time adaptation."""
 
+import importlib.util
 from collections import deque
 from typing import Any
 
@@ -17,15 +18,7 @@ from crypto_analysis.online.models.online_rf import OnlineRandomForest
 from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 from crypto_analysis.signals.features import FeatureEngineer
 
-try:
-    TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
-
-try:
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
+TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
 
 
 class OnlineSignalGenerator(SignalGenerator):
@@ -73,7 +66,7 @@ class OnlineSignalGenerator(SignalGenerator):
         )
 
         self.lstm: OnlineLSTM | None = None
-        if TF_AVAILABLE:
+        if TORCH_AVAILABLE:
             try:
                 self.lstm = OnlineLSTM(sequence_length=sequence_length)
             except ImportError:

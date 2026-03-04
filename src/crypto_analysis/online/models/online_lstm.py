@@ -5,140 +5,174 @@ from collections import deque
 import numpy as np
 
 try:
-    from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
-    from tensorflow.keras.models import Model
+    import torch
+    import torch.nn as nn
 
-    TF_AVAILABLE = True
+    TORCH_AVAILABLE = True
 except ImportError:
-    TF_AVAILABLE = False
+    TORCH_AVAILABLE = False
+    nn = None
 
 from crypto_analysis.online.base import OnlineModel
 
+if TORCH_AVAILABLE:
 
-class OnlineLSTM(OnlineModel):
-    """LSTM with online learning using truncated backpropagation.
+    class LSTMPyTorch(nn.Module):
+        """PyTorch LSTM for online learning."""
 
-    Maintains hidden state and updates on recent sequences. Uses
-    stateful LSTM for efficient mini-batch updates.
+        def __init__(
+            self, input_size: int, hidden_size: int, num_layers: int = 2
+        ) -> None:
+            super().__init__()
+            self.hidden_size = hidden_size
+            self.num_layers = num_layers
 
-    Note:
-        Requires TensorFlow to be installed. Import will fail gracefully
-        if TensorFlow is not available.
+            self.lstm = nn.LSTM(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                num_layers=num_layers,
+                batch_first=True,
+                dropout=0.2,
+            )
+            self.fc = nn.Linear(hidden_size, 1)
 
-    Attributes:
-        sequence_length: Number of time steps in input sequences
-        n_features: Number of input features
-        units: List of LSTM layer sizes
-        lr: Learning rate
-        model: Compiled Keras model
-        sequence_buffer: Buffer for recent sequences
-    """
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            lstm_out, _ = self.lstm(x)
+            out = self.fc(lstm_out[:, -1, :])
+            return out
 
-    def __init__(
-        self,
-        sequence_length: int = 60,
-        n_features: int = 50,
-        units: list[int] | None = None,
-        learning_rate: float = 0.001,
-    ) -> None:
-        """Initialize Online LSTM.
+    class OnlineLSTM(OnlineModel):
+        """LSTM with online learning using truncated backpropagation.
 
-        Args:
-            sequence_length: Number of time steps in sequences
+        Maintains hidden state and updates on recent sequences. Uses
+        stateful LSTM for efficient mini-batch updates.
+
+        Note:
+            Requires PyTorch to be installed. Import will fail gracefully
+            if PyTorch is not available.
+
+        Attributes:
+            sequence_length: Number of time steps in input sequences
             n_features: Number of input features
-            units: LSTM layer sizes (default: [64, 32])
-            learning_rate: Learning rate for optimization
+            units: List of LSTM layer sizes
+            lr: Learning rate
+            model: PyTorch LSTM model
+            sequence_buffer: Buffer for recent sequences
         """
-        super().__init__(name="OnlineLSTM", learning_rate=learning_rate)
 
-        if not TF_AVAILABLE:
-            raise ImportError(
-                "TensorFlow is required for OnlineLSTM. Install with: pip install tensorflow"
+        def __init__(
+            self,
+            sequence_length: int = 60,
+            n_features: int = 50,
+            units: list[int] | None = None,
+            learning_rate: float = 0.001,
+        ) -> None:
+            """Initialize Online LSTM.
+
+            Args:
+                sequence_length: Number of time steps in sequences
+                n_features: Number of input features
+                units: LSTM layer sizes (default: [64, 32])
+                learning_rate: Learning rate for optimization
+            """
+            super().__init__(name="OnlineLSTM", learning_rate=learning_rate)
+
+            if not TORCH_AVAILABLE:
+                raise ImportError(
+                    "PyTorch is required for OnlineLSTM. Install with: pip install torch"
+                )
+
+            self.sequence_length = sequence_length
+            self.n_features = n_features
+            self.units = units or [64, 32]
+            self.lr = learning_rate
+            self.device = torch.device("cpu")
+
+            self.model = LSTMPyTorch(
+                n_features, self.units[-1], num_layers=len(self.units)
+            )
+            self.model.to(self.device)
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+            self.criterion = nn.MSELoss()
+
+            self.sequence_buffer: deque[tuple[np.ndarray, np.ndarray]] = deque(
+                maxlen=sequence_length * 10
             )
 
-        self.sequence_length = sequence_length
-        self.n_features = n_features
-        self.units = units or [64, 32]
-        self.lr = learning_rate
-        self.model: Model | None = None
-        self.sequence_buffer: deque[tuple[np.ndarray, np.ndarray]] = deque(
-            maxlen=sequence_length * 10
-        )
-        self.build_model()
+            self.hidden_state: tuple[torch.Tensor, torch.Tensor] | None = None
 
-    def build_model(self) -> None:
-        """Build LSTM with stateful capabilities."""
-        inputs = Input(batch_shape=(1, self.sequence_length, self.n_features))
-        x = inputs
+        def partial_fit(self, X: np.ndarray, y: np.ndarray) -> float | None:
+            """Update model with new sequence using TBPTT.
 
-        for units in self.units:
-            x = LSTM(units, stateful=True, return_sequences=True)(x)
-            x = Dropout(0.2)(x)
+            Args:
+                X: Input sequence of shape (1, sequence_length, n_features)
+                y: Target of shape (1, 1)
 
-        x = LSTM(self.units[-1], stateful=True)(x)
-        outputs = Dense(1, activation="tanh")(x)
+            Returns:
+                Training loss
+            """
+            X_tensor = torch.FloatTensor(X).to(self.device)
+            y_tensor = torch.FloatTensor(y).to(self.device).reshape(-1, 1)
 
-        self.model = Model(inputs, outputs)
-        self.model.compile(
-            optimizer="adam",  # Will be replaced with custom lr
-            loss="mse",
-        )
+            self.sequence_buffer.append((X, y))
 
-    def partial_fit(self, X: np.ndarray, y: np.ndarray) -> float | None:
-        """Update model with new sequence using TBPTT.
+            self.model.train()
+            self.optimizer.zero_grad()
 
-        Args:
-            X: Input sequence of shape (1, sequence_length, n_features)
-            y: Target of shape (1, 1)
+            if len(self.units) > 1:
+                lstm_out, self.hidden_state = self.model.lstm(
+                    X_tensor, self.hidden_state
+                )
+            else:
+                lstm_out, self.hidden_state = self.model.lstm(X_tensor)
 
-        Returns:
-            Training loss
-        """
-        if self.model is None:
-            return None
+            output = self.model.fc(lstm_out[:, -1, :])
+            loss = self.criterion(output, y_tensor)
 
-        self.sequence_buffer.append((X, y))
+            loss.backward()
+            self.optimizer.step()
 
-        if len(self.sequence_buffer) % 100 == 0:
-            self.model.reset_states()
+            if len(self.sequence_buffer) % 100 == 0:
+                self.reset_states()
 
-        loss = self.model.train_on_batch(X, y)
+            self.update_count += 1
+            return float(loss.item())
 
-        if len(self.sequence_buffer) >= 32:
-            recent_batch = list(self.sequence_buffer)[-32:]
-            X_batch = np.concatenate([x for x, _ in recent_batch])
-            y_batch = np.concatenate([y for _, y in recent_batch])
-            self.model.train_on_batch(X_batch, y_batch)
+        def predict(self, X: np.ndarray) -> np.ndarray:
+            """Make predictions on input sequences.
 
-        self.update_count += 1
-        return float(loss) if isinstance(loss, (float, int)) else None
+            Args:
+                X: Input sequences of shape (n_samples, sequence_length, n_features)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        """Make predictions on input sequences.
+            Returns:
+                Predictions of shape (n_samples, 1)
+            """
+            self.model.eval()
+            with torch.no_grad():
+                X_tensor = torch.FloatTensor(X).to(self.device)
 
-        Args:
-            X: Input sequences of shape (n_samples, sequence_length, n_features)
+                if len(self.units) > 1:
+                    lstm_out, _ = self.model.lstm(X_tensor, None)
+                else:
+                    lstm_out, _ = self.model.lstm(X_tensor)
 
-        Returns:
-            Predictions of shape (n_samples, 1)
-        """
-        if self.model is None:
-            return np.zeros((len(X), 1))
-        return np.asarray(self.model.predict(X, verbose=0))
+                output = self.model.fc(lstm_out[:, -1, :])
 
-    def set_learning_rate(self, lr: float) -> None:
-        """Update the optimizer learning rate.
+            return np.asarray(output.cpu().numpy())
 
-        Args:
-            lr: New learning rate value
-        """
-        if self.model is not None:
-            import tensorflow.keras.backend as backend
+        def set_learning_rate(self, lr: float) -> None:
+            """Update the optimizer learning rate.
 
-            backend.set_value(self.model.optimizer.learning_rate, lr)
-        self.lr = lr
+            Args:
+                lr: New learning rate value
+            """
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = lr
+            self.lr = lr
 
-    def reset_states(self) -> None:
-        """Reset LSTM hidden states."""
-        if self.model is not None:
-            self.model.reset_states()
+        def reset_states(self) -> None:
+            """Reset LSTM hidden states."""
+            self.hidden_state = None
+
+else:
+    OnlineLSTM = None  # type: ignore[assignment,misc]
