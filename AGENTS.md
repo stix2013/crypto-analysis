@@ -152,7 +152,42 @@ crypto-analysis/
 ├── models/                    # Trained model checkpoints (joblib)
 ├── run_training.sh            # Training wrapper script
 ├── pyproject.toml
+├── worker/
+│   ├── celery_app.py          # Celery app configuration
+│   ├── tasks.py               # Shared Celery tasks (using @shared_task)
+│   ├── requirements.txt       # Worker-specific dependencies (PyTorch CPU)
+│   └── Dockerfile             # Multi-stage build for Celery worker
 └── AGENTS.md
+```
+
+## Celery Worker Architecture
+
+### Overview
+The system uses Celery for asynchronous task processing, including data fetching, model training, and backtesting. The worker runs in a Docker container using a multi-stage build optimized for PyTorch (CPU-only).
+
+### Key Components
+- **Broker/Backend**: Redis (`redis://redis:6379/0`)
+- **App Instance**: Defined in `worker/celery_app.py`.
+- **Tasks**: Defined in `worker/tasks.py` using `@shared_task` to avoid circular dependencies with the app instance.
+- **Environment**: Configured via `worker/.env` and `docker-compose.worker.yml`.
+
+### Best Practices for Tasks
+- **Decoupling**: Always use `@shared_task` instead of `@app.task` to prevent circular imports between the app configuration and task definitions.
+- **Module Imports**: Import library code from `crypto_analysis.*` directly. The Docker environment sets `PYTHONPATH=/app` to enable this.
+- **ML Compatibility**: ML models (LSTM, Neural Network) include `TORCH_AVAILABLE` guards. Workers will skip ML updates if PyTorch is not fully initialized, but will continue processing technical/statistical signals.
+- **Pathing**: Use `/app/signals` and `/app/models` for persistent storage, mapped to Docker volumes.
+
+### Running the Worker
+```bash
+# Build and start the worker, beat, and flower
+docker compose -f docker-compose.worker.yml build worker
+docker compose -f docker-compose.worker.yml up -d
+
+# View logs
+docker compose -f docker-compose.worker.yml logs -f worker
+
+# Access Flower (Monitoring)
+# URL: http://localhost:5555
 ```
 
 ## Agent Skills
