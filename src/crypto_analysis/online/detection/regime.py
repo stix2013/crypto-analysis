@@ -78,40 +78,55 @@ class RegimeDetector:
 
         features = np.zeros(10)
 
-        features[0] = recent["close"].iloc[-1] / recent["close"].iloc[0] - 1
+        # 0: Momentum
+        if recent["close"].iloc[0] > 0:
+            features[0] = recent["close"].iloc[-1] / recent["close"].iloc[0] - 1
 
+        # 1: Trend
         if len(recent) > 1:
-            trend_coef = np.polyfit(range(len(recent)), recent["close"], 1)[0]
-            features[1] = trend_coef / recent["close"].mean()
+            close_mean = recent["close"].mean()
+            if close_mean > 0:
+                trend_coef = np.polyfit(range(len(recent)), recent["close"], 1)[0]
+                features[1] = trend_coef / close_mean
 
+        # 2: Volatility
         features[2] = returns.std() * np.sqrt(365 * 24)
 
+        # 3: Volatility Acceleration
         if len(returns) > 1:
             prev_vol = returns.shift(1).std()
             if prev_vol > 0:
                 features[3] = returns.std() / prev_vol - 1
 
-        features[4] = (
-            recent["volume"].mean() / recent["volume"].rolling(50).mean().iloc[-1]
-        )
+        # 4: Relative Volume
+        vol_rolling = recent["volume"].rolling(50).mean()
+        if not vol_rolling.empty and vol_rolling.iloc[-1] > 0:
+            features[4] = recent["volume"].mean() / vol_rolling.iloc[-1]
 
-        features[5] = (
-            recent["close"].iloc[-1] - recent["close"].rolling(20).mean().iloc[-1]
-        ) / recent["close"].std()
+        # 5: Deviation from Moving Average (Z-Score like)
+        close_std = recent["close"].std()
+        if close_std > 0:
+            ma20 = recent["close"].rolling(20).mean()
+            if not ma20.empty:
+                features[5] = (recent["close"].iloc[-1] - ma20.iloc[-1]) / close_std
 
-        features[6] = (recent["high"].max() - recent["low"].min()) / recent[
-            "close"
-        ].mean()
+        # 6: Range
+        close_mean = recent["close"].mean()
+        if close_mean > 0:
+            features[6] = (recent["high"].max() - recent["low"].min()) / close_mean
 
+        # 7, 8: Distribution shape
         if len(returns) > 10:
             features[7] = stats.skew(returns)
             features[8] = stats.kurtosis(returns)
 
+        # 9: Efficiency Ratio
         if "true_range" in recent.columns:
-            features[9] = (
-                abs(recent["close"].iloc[-1] - recent["close"].iloc[0])
-                / recent["true_range"].sum()
-            )
+            tr_sum = recent["true_range"].sum()
+            if tr_sum > 0:
+                features[9] = (
+                    abs(recent["close"].iloc[-1] - recent["close"].iloc[0]) / tr_sum
+                )
 
         return features
 
