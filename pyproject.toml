@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = ["tensorflow>=2.13.0"]
+ml = ["torch>=2.0.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
