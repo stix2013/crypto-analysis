@@ -1,7 +1,7 @@
 # AGENTS.md - Crypto Analysis Project
 
 ## Project Overview
-Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading. Features adaptive online learning, event-driven backtesting, and advanced risk management (SL/TP, volatility-adjusted sizing).
+Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading. Features adaptive online learning (PyTorch CPU-only), event-driven backtesting, and advanced risk management (SL/TP, volatility-adjusted sizing).
 
 ## Build/Lint/Test Commands
 

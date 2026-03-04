@@ -1,11 +1,11 @@
 # Crypto Analysis
 
-Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading.
+Signal generation system integrating machine learning, technical analysis, and statistical methods for cryptocurrency trading. Uses PyTorch (CPU-only) for adaptive online learning.
 
 ## Features
 
 - **Adaptive Online Learning**: Continuous model updates with real-time market data, regime detection, and adaptive learning rates.
-- **ML-based Generators**: LSTM and Random Forest models for price prediction and classification.
+- **ML-based Generators**: PyTorch-based LSTM and Random Forest models for price prediction and classification.
 - **Technical Analysis**: Pattern recognition (double top/bottom, breakouts, mean reversion) and comprehensive feature engineering (RSI, MFI, Choppiness Index).
 - **Signal Aggregation**: Combine multiple generators with weighted confidence, majority vote, or best confidence methods.
 - **Risk Management**: Integrated Stop-Loss (SL) and Take-Profit (TP) triggers, and dynamic volatility-adjusted position sizing.
@@ -74,7 +74,7 @@ crypto-analysis/
 
 ### ML Generators
 
-- **LSTMSignalGenerator**: LSTM-based sequence prediction with attention
+- **LSTMSignalGenerator**: PyTorch LSTM-based sequence prediction with attention
 - **RandomForestSignalGenerator**: Random Forest classifier with feature importance
 
 ### Technical Generators
