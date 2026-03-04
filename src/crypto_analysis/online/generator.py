@@ -66,17 +66,17 @@ class OnlineSignalGenerator(SignalGenerator):
         )
 
         self.lstm: OnlineLSTM | None = None
-        if TORCH_AVAILABLE:
+        if TORCH_AVAILABLE and OnlineLSTM is not None:
             try:
                 self.lstm = OnlineLSTM(sequence_length=sequence_length)
-            except ImportError:
+            except (ImportError, TypeError):
                 pass
 
         self.nn: OnlineNeuralNetwork | None = None
-        if TORCH_AVAILABLE:
+        if TORCH_AVAILABLE and OnlineNeuralNetwork is not None:
             try:
                 self.nn = OnlineNeuralNetwork(input_dim=50)
-            except ImportError:
+            except (ImportError, TypeError):
                 pass
 
         self.regime_detector = RegimeDetector()
