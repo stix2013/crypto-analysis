@@ -2,7 +2,7 @@
 
 # docker-manage.sh - Manage Docker Compose lifecycle for Redis and Worker
 #
-# Usage: ./docker-manage.sh [up|down|status|restart]
+# Usage: ./docker-manage.sh [up|down|status|restart] [--build]
 #
 # Requirements:
 # - docker-compose.redis.yml
@@ -19,21 +19,22 @@ WORKER_PROJECT="crypto-worker"
 
 # Helper for displaying help
 usage() {
-    echo "Usage: $0 [up|down|status|restart]"
+    echo "Usage: $0 [up|down|status|restart] [--build]"
     echo ""
     echo "Commands:"
-    echo "  up      Start services (Redis first, then Worker)"
+    echo "  up      Start services (Redis first, then Worker). Optional: --build"
     echo "  down    Stop services (Worker first, then Redis)"
     echo "  status  Show status of all services"
-    echo "  restart Restart all services"
+    echo "  restart Restart all services. Optional: --build"
     exit 1
 }
 
 # --- Actions ---
 
 start_services() {
+    BUILD_FLAG=$1
     echo "[Info] Starting Redis infrastructure..."
-    docker compose -p "$REDIS_PROJECT" -f "$REDIS_COMPOSE" up -d
+    docker compose -p "$REDIS_PROJECT" -f "$REDIS_COMPOSE" up -d $BUILD_FLAG
 
     echo "[Info] Waiting for Redis to be healthy..."
     # Give it a moment for healthcheck to initialize
@@ -61,7 +62,7 @@ start_services() {
     fi
 
     echo "[Info] Starting Worker infrastructure..."
-    docker compose -p "$WORKER_PROJECT" -f "$WORKER_COMPOSE" up -d
+    docker compose -p "$WORKER_PROJECT" -f "$WORKER_COMPOSE" up -d $BUILD_FLAG
     echo "[Success] All services started."
 }
 
@@ -84,9 +85,13 @@ show_status() {
 
 # --- Main ---
 
-case "$1" in
+COMMAND=$1
+shift || true
+EXTRA_ARGS=$*
+
+case "$COMMAND" in
     up)
-        start_services
+        start_services "$EXTRA_ARGS"
         ;;
     down)
         stop_services
@@ -96,7 +101,7 @@ case "$1" in
         ;;
     restart)
         stop_services
-        start_services
+        start_services "$EXTRA_ARGS"
         ;;
     *)
         usage
