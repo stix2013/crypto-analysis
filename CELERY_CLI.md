@@ -31,6 +31,11 @@ export CELERY_RESULT_BACKEND=redis://localhost:6379/0
 celery -A worker.celery_app status
 ```
 
+### Using Flower (Web UI)
+Flower is a real-time web-based monitoring tool for Celery.
+- **URL**: [http://localhost:5555](http://localhost:5555)
+- **Features**: Monitor task progress, view worker stats, and inspect task results.
+
 ---
 
 ## 2. Triggering Tasks via CLI

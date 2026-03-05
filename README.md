@@ -61,6 +61,7 @@ For distributed task processing (fetching data, training models, backtesting), y
   export CELERY_BROKER_URL=redis://localhost:6379/0
   celery -A worker.celery_app status
   ```
+- **Using Flower (Web UI)**: [http://localhost:5555](http://localhost:5555) (available when running worker services).
 
 #### Triggering Tasks via CLI
 You can trigger tasks using the `celery call` command:
