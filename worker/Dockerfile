@@ -8,11 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY worker/requirements.txt /build/requirements.txt
 
-# Strip any GPU/CUDA dependencies and install torch+cpu explicitly to ensure smallest image size
+# Strip any GPU/CUDA dependencies and install torch+cpu/flower explicitly to ensure smallest image size
 RUN sed -i '/nvidia-/d' /build/requirements.txt && \
     sed -i '/cuda-/d' /build/requirements.txt && \
     sed -i '/torch/d' /build/requirements.txt && \
+    sed -i '/flower/d' /build/requirements.txt && \
     pip install --no-cache-dir --prefix=/install torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --prefix=/install flower && \
     pip install --no-cache-dir --prefix=/install -r /build/requirements.txt
 
 

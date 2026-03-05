@@ -44,7 +44,7 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    command: flower -A celery_app --port=5555 --loglevel=${CELERY_LOG_LEVEL:-info}
+    command: python3 -m flower -A celery_app --port=5555 --loglevel=${CELERY_LOG_LEVEL:-info}
     ports:
       - "5555:5555"
     env_file:
