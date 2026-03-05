@@ -1,13 +1,31 @@
+x-binance-hosts: &binance-hosts
+  binance.com: 3.170.91.76
+  www.binance.com: 3.170.91.76
+  api.binance.com: 108.156.104.23
+  developers.binance.com: 18.172.242.31
+  fapi.binance.com: 13.35.24.46
+  fstream.binance.com: 13.249.134.34
+  stream.binance.com: 13.114.105.102
+
 services:
+
+# Celery Worker service
   worker:
     build:
       context: .
       dockerfile: worker/Dockerfile
     env_file:
-      - ./worker/.env
+      - ./.env
     environment:
       - OMP_NUM_THREADS=4
       - MKL_NUM_THREADS=4
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    extra_hosts:
+      <<: *binance-hosts
     networks:
       - worker_network
     deploy:
@@ -26,13 +44,17 @@ services:
       - trade_signal:/app/signals
       - trade_model:/app/models
 
+# Celery beat service
   celery_beat:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    command: celery -A celery_app beat --loglevel=${CELERY_LOG_LEVEL:-info}
+    command: celery -A celery_app beat --loglevel=${CELERY_LOG_LEVEL:-info} --scheduler celery.beat.PersistentScheduler
     env_file:
-      - ./worker/.env
+      - ./.env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     networks:
       - worker_network
     depends_on:
@@ -40,15 +62,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+# Flower service
   flower:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    command: python3 -m flower -A celery_app --port=5555 --loglevel=${CELERY_LOG_LEVEL:-info}
+    command: >
+      celery -A celery_app flower
+      --broker=redis://redis:6379/0
+      --port=5555
+      --loglevel=${CELERY_LOG_LEVEL:-info}
     ports:
       - "5555:5555"
     env_file:
-      - ./worker/.env
+      - ./.env
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - FLOWER_UNAUTHENTICATED_API=True
     networks:
       - worker_network
     healthcheck:
@@ -56,10 +87,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
     depends_on:
       worker:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
+
 volumes:
   trade_signal:
   trade_model:

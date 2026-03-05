@@ -119,12 +119,17 @@ if TORCH_AVAILABLE:
             self.model.train()
             self.optimizer.zero_grad()
 
-            if len(self.units) > 1:
-                lstm_out, self.hidden_state = self.model.lstm(
-                    X_tensor, self.hidden_state
-                )
-            else:
-                lstm_out, self.hidden_state = self.model.lstm(X_tensor)
+            # Reset or detach hidden state
+            # If batch size changes (e.g., last batch in fit()), we must reset
+            if self.hidden_state is not None:
+                if self.hidden_state[0].size(1) != X_tensor.size(0):
+                    self.hidden_state = None
+                else:
+                    self.hidden_state = tuple(h.detach() for h in self.hidden_state)
+
+            lstm_out, self.hidden_state = self.model.lstm(
+                X_tensor, self.hidden_state
+            )
 
             output = self.model.fc(lstm_out[:, -1, :])
             loss = self.criterion(output, y_tensor)
@@ -151,11 +156,7 @@ if TORCH_AVAILABLE:
             with torch.no_grad():
                 X_tensor = torch.FloatTensor(X).to(self.device)
 
-                if len(self.units) > 1:
-                    lstm_out, _ = self.model.lstm(X_tensor, None)
-                else:
-                    lstm_out, _ = self.model.lstm(X_tensor)
-
+                lstm_out, _ = self.model.lstm(X_tensor)
                 output = self.model.fc(lstm_out[:, -1, :])
 
             return np.asarray(output.cpu().numpy())

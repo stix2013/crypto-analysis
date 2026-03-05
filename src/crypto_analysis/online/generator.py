@@ -66,18 +66,7 @@ class OnlineSignalGenerator(SignalGenerator):
         )
 
         self.lstm: OnlineLSTM | None = None
-        if TORCH_AVAILABLE and OnlineLSTM is not None:
-            try:
-                self.lstm = OnlineLSTM(sequence_length=sequence_length)
-            except (ImportError, TypeError):
-                pass
-
         self.nn: OnlineNeuralNetwork | None = None
-        if TORCH_AVAILABLE and OnlineNeuralNetwork is not None:
-            try:
-                self.nn = OnlineNeuralNetwork(input_dim=50)
-            except (ImportError, TypeError):
-                pass
 
         self.regime_detector = RegimeDetector()
         self.lr_scheduler = AdaptiveLearningRate()
@@ -139,6 +128,22 @@ class OnlineSignalGenerator(SignalGenerator):
         y_lstm_arr = np.array(y_lstm)
         X_other_arr = np.array(X_other)
         y_other_arr = np.array(y_other)
+
+        input_dim = len(self.feature_cols)
+
+        if self.lstm is None and TORCH_AVAILABLE and OnlineLSTM is not None:
+            try:
+                self.lstm = OnlineLSTM(
+                    sequence_length=self.sequence_length, n_features=input_dim
+                )
+            except (ImportError, TypeError):
+                pass
+
+        if self.nn is None and TORCH_AVAILABLE and OnlineNeuralNetwork is not None:
+            try:
+                self.nn = OnlineNeuralNetwork(input_dim=input_dim)
+            except (ImportError, TypeError):
+                pass
 
         if self.lstm is not None and len(X_lstm_arr) > 0:
             print(f"[{self.name}] Training LSTM...")
