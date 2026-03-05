@@ -80,3 +80,6 @@ logs/
 # Temp
 *.tmp
 temp/
+
+.gemini/
+gha-creds-*.json

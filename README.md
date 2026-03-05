@@ -42,6 +42,49 @@ from crypto_analysis.signals import (
 # ... (see examples/basic_usage.py for details)
 ```
 
+### 3. Using Celery Worker
+For distributed task processing (fetching data, training models, backtesting), you can use the integrated Celery worker.
+
+#### Prerequisites
+1. **Redis** and **Worker** services must be running. Use the management script:
+   ```bash
+   ./docker-manage.sh up
+   ```
+2. **Environment Variables**: Ensure you have a `.env` file in the project root or set the required variables (e.g., `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`).
+   - Defaults: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
+
+#### Monitoring the Worker
+- **Using Docker (Recommended)**: `docker exec -it crypto-worker-worker-1 celery -A celery_app status`
+- **Using Host Machine**:
+  ```bash
+  export PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)/worker
+  export CELERY_BROKER_URL=redis://localhost:6379/0
+  celery -A worker.celery_app status
+  ```
+
+#### Triggering Tasks via CLI
+You can trigger tasks using the `celery call` command:
+```bash
+# Example: Fetch Market Data
+docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
+
+# Example: Train Model
+docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}'
+```
+
+#### Available Tasks Reference
+The following tasks are defined in `worker/tasks.py`:
+
+| Task Name | Arguments | Description |
+| :--- | :--- | :--- |
+| `fetch_market_data` | `symbol`, `interval`, `bars` | Fetches historical data from Binance. |
+| `train_model` | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir` | Trains an online learning model. |
+| `run_prediction` | `model_path`, `symbol`, `interval`, `bars` | Generates signals using a trained model. |
+| `run_backtest` | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission` | Runs a backtest from a signals CSV. |
+| `train_and_backtest`| `symbol`, `interval`, `bars`, `warmup_bars` | Orchestrates training and backtesting. |
+
+For more detailed commands, see the full CLI reference in [CELERY_CLI.md](./CELERY_CLI.md).
+
 ## Project Structure
 
 ```
