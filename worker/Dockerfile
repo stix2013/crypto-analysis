@@ -8,7 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY worker/requirements.txt /build/requirements.txt
 
-RUN pip install --no-cache-dir --prefix=/install  --extra-index-url https://download.pytorch.org/whl/cpu -r /build/requirements.txt
+# Strip any GPU/CUDA dependencies and install torch+cpu explicitly to ensure smallest image size
+RUN sed -i '/nvidia-/d' /build/requirements.txt && \
+    sed -i '/cuda-/d' /build/requirements.txt && \
+    sed -i '/torch/d' /build/requirements.txt && \
+    pip install --no-cache-dir --prefix=/install torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --prefix=/install -r /build/requirements.txt
 
 
 FROM python:3.11-slim AS production
