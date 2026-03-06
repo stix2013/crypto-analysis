@@ -151,7 +151,10 @@ crypto-analysis/
 │   └── predict.py             # Model inference CLI
 ├── signals/                   # Generated trading signals (CSV)
 ├── models/                    # Trained model checkpoints (joblib)
-├── run_training.sh            # Training wrapper script
+├── docker-compose.data.yml # Redis broker infrastructure
+├── docker-compose.worker.yml # Celery worker infrastructure
+├── docker-manage.sh    # Management script for Data/Worker
+├── run_training.sh     # Training wrapper script
 ├── pyproject.toml
 ├── worker/
 │   ├── celery_app.py          # Celery app configuration
@@ -159,6 +162,7 @@ crypto-analysis/
 │   ├── requirements.txt       # Worker-specific dependencies (PyTorch CPU)
 │   └── Dockerfile             # Multi-stage build for Celery worker
 └── AGENTS.md
+
 ```
 
 ## Celery Worker Architecture
@@ -178,18 +182,29 @@ The system uses Celery for asynchronous task processing, including data fetching
 - **ML Compatibility**: ML models (LSTM, Neural Network) include `TORCH_AVAILABLE` guards. Workers will skip ML updates if PyTorch is not fully initialized, but will continue processing technical/statistical signals.
 - **Pathing**: Use `/app/signals` and `/app/models` for persistent storage, mapped to Docker volumes.
 
-### Running the Worker
+### Running the Services
+The project uses a management script to orchestrate both Data (Redis) and Worker (Celery) infrastructure.
+
 ```bash
-# Build and start the worker, beat, and flower
-docker compose -f docker-compose.worker.yml build worker
-docker compose -f docker-compose.worker.yml up -d
+# Start all services (Redis + 1 Worker)
+./docker-manage.sh up
 
-# View logs
-docker compose -f docker-compose.worker.yml logs -f worker
+# Start with multiple worker instances
+./docker-manage.sh up --workers 3
 
-# Access Flower (Monitoring)
-# URL: http://localhost:5555
+# Check status of all services
+./docker-manage.sh status
+
+# Stop all services
+./docker-manage.sh down
 ```
+
+### Manual Docker Management (Advanced)
+If needed, you can manage the infrastructure components separately:
+- **Data (Redis)**: `docker compose -f docker-compose.data.yml`
+- **Worker (Celery)**: `docker compose -f docker-compose.worker.yml`
+
+Access Flower (Monitoring) at [http://localhost:5555](http://localhost:5555) when the worker is running.
 
 ## Agent Skills
 

@@ -27,7 +27,7 @@ services:
     extra_hosts:
       <<: *binance-hosts
     networks:
-      - worker_network
+      - shared_network
     deploy:
       resources:
         limits:
@@ -56,7 +56,7 @@ services:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     networks:
-      - worker_network
+      - shared_network
     depends_on:
       worker:
         condition: service_healthy
@@ -81,7 +81,7 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - FLOWER_UNAUTHENTICATED_API=True
     networks:
-      - worker_network
+      - shared_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5555/healthcheck"]
       interval: 30s
@@ -98,5 +98,5 @@ volumes:
   trade_model:
 
 networks:
-  worker_network:
+  shared_network:
     external: true

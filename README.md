@@ -45,16 +45,35 @@ from crypto_analysis.signals import (
 ```
 
 ### 3. Using Celery Worker
-For distributed task processing (fetching data, training models, backtesting), you can use the integrated Celery worker.
+For distributed task processing (fetching data, training models, backtesting), the project uses Celery with Redis.
 
-#### Prerequisites
-1. **Redis** and **Worker** services must be running. Use the management script:
-   ```bash
-   # Start with 2 worker instances
-   ./docker-manage.sh up --workers 2
-   ```
-2. **Environment Variables**: Ensure you have a `.env` file in the project root or set the required variables (e.g., `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`).
-   - Defaults: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
+#### Infrastructure Components
+- **Data (`docker-compose.data.yml`)**: Provides Redis as the message broker.
+- **Worker (`docker-compose.worker.yml`)**: Runs the Celery worker, beat scheduler, and Flower monitor.
+
+#### Management Script (Recommended)
+Use `./docker-manage.sh` to orchestrate both Data and Worker services seamlessly:
+
+```bash
+# Start all services (Redis + 1 Worker)
+./docker-manage.sh up
+
+# Start with multiple worker instances
+./docker-manage.sh up --workers 3
+
+# Check status of all services
+./docker-manage.sh status
+
+# Rebuild and restart
+./docker-manage.sh restart --build
+
+# Stop all services
+./docker-manage.sh down
+```
+
+#### Environment Configuration
+Ensure you have a `.env` file in the project root (see `worker/.env.example` for reference).
+- **Broker**: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
 
 #### Monitoring the Worker
 - **Using Docker (Recommended)**: `docker exec -it crypto-worker-worker-1 celery -A celery_app status`
@@ -108,6 +127,10 @@ crypto-analysis/
 ├── scripts/            # Training and Prediction CLIs
 ├── signals/            # Generated signals (CSV)
 ├── models/             # Trained model checkpoints (joblib)
+├── docker-compose.data.yml # Data infrastructure (Redis)
+├── docker-compose.worker.yml # Worker infrastructure (Celery)
+├── docker-manage.sh    # Multi-container management script
+├── .env.example        # Environment template
 ├── run_training.sh     # Training runner
 ├── pyproject.toml
 └── README.md

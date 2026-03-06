@@ -3,7 +3,7 @@ services:
     image: redis:7-alpine
     container_name: redis_broker
     networks:
-      - worker_network
+      - shared_network
     volumes:
       - redis_data:/data
     ports:
@@ -18,9 +18,9 @@ services:
     command: redis-server --appendonly yes
 
 networks:
-  worker_network:
+  shared_network:
     driver: bridge
-    name: worker_network
+    name: shared_network
 
 volumes:
   redis_data:
