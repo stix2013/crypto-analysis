@@ -199,7 +199,7 @@ class BinanceClient:
         """Fetch historical OHLCV data efficiently.
 
         Uses a backward-fetching approach to get the most recent bars
-        efficiently without needing to know the exact time range.
+        efficiently by fetching progressively older data.
 
         Args:
             symbol: Trading pair symbol (e.g., 'ETHUSDT')
@@ -209,17 +209,20 @@ class BinanceClient:
         Returns:
             DataFrame with OHLCV data
         """
+        # Initial fetch of latest data
         df = self.fetch_ohlcv(symbol, interval, limit=min(bars, 1500))
 
+        # Progressively fetch older data if we need more
         while len(df) < bars:
-            last_time = int(df.index[-1].timestamp() * 1000) + 1
+            # Fetch data older than our current earliest bar
+            first_time = int(df.index[0].timestamp() * 1000) - 1
             more_data = self._request(
                 "GET",
                 "/fapi/v1/klines",
                 {
                     "symbol": symbol.upper(),
                     "interval": interval,
-                    "startTime": last_time,
+                    "endTime": first_time,
                     "limit": min(bars - len(df), 1500),
                 },
             )
@@ -253,8 +256,13 @@ class BinanceClient:
             new_df = new_df.set_index("open_time")
             new_df = new_df[numeric_cols]
 
-            df = pd.concat([df, new_df])
-            df = df[~df.index.duplicated(keep="first")]
+            # Older data goes at the top
+            df = pd.concat([new_df, df])
+            df = df[~df.index.duplicated(keep="last")]
+
+            # If we didn't get much data, might be at the beginning of history
+            if len(more_data) < 10:
+                break
 
         return df.tail(bars)
 

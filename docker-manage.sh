@@ -2,7 +2,7 @@
 
 # docker-manage.sh - Manage Docker Compose lifecycle for Redis and Worker
 #
-# Usage: ./docker-manage.sh [up|down|status|restart] [--build]
+# Usage: ./docker-manage.sh [up|down|status|restart] [--build] [--workers N]
 #
 # Requirements:
 # - docker-compose.redis.yml
@@ -19,21 +19,50 @@ WORKER_PROJECT="crypto-worker"
 
 # Helper for displaying help
 usage() {
-    echo "Usage: $0 [up|down|status|restart] [--build]"
+    echo "Usage: $0 [up|down|status|restart] [--build] [--workers N]"
     echo ""
     echo "Commands:"
-    echo "  up      Start services (Redis first, then Worker). Optional: --build"
+    echo "  up      Start services (Redis first, then Worker)."
+    echo "          Options:"
+    echo "            --build       Rebuild images before starting"
+    echo "            --workers N   Scale worker service to N instances"
     echo "  down    Stop services (Worker first, then Redis)"
     echo "  status  Show status of all services"
-    echo "  restart Restart all services. Optional: --build"
+    echo "  restart Restart all services. Supports --build and --workers."
     exit 1
 }
 
 # --- Actions ---
 
 start_services() {
-    BUILD_FLAG=$1
+    BUILD_FLAG=""
+    SCALE_FLAG=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --build)
+                BUILD_FLAG="--build"
+                shift
+                ;;
+            --workers)
+                if [[ -n "$2" ]] && [[ "$2" =~ ^[0-9]+$ ]]; then
+                    SCALE_FLAG="--scale worker=$2"
+                    shift 2
+                else
+                    echo "Error: --workers requires a number"
+                    exit 1
+                fi
+                ;;
+            *)
+                echo "Unknown option: $1"
+                usage
+                ;;
+        esac
+    done
+
     echo "[Info] Starting Redis infrastructure..."
+    # Redis doesn't support scaling workers, so only pass build flag
     docker compose -p "$REDIS_PROJECT" -f "$REDIS_COMPOSE" up -d $BUILD_FLAG
 
     echo "[Info] Waiting for Redis to be healthy..."
@@ -62,7 +91,13 @@ start_services() {
     fi
 
     echo "[Info] Starting Worker infrastructure..."
-    docker compose -p "$WORKER_PROJECT" -f "$WORKER_COMPOSE" up -d $BUILD_FLAG
+    # Pass both build and scale flags to worker compose
+    # Note: We must be careful with variable expansion.
+    # Using 'eval' or just relying on word splitting for simple flags works here.
+    CMD="docker compose -p \"$WORKER_PROJECT\" -f \"$WORKER_COMPOSE\" up -d $BUILD_FLAG $SCALE_FLAG"
+    echo "Running: $CMD"
+    eval $CMD
+
     echo "[Success] All services started."
 }
 
@@ -87,11 +122,11 @@ show_status() {
 
 COMMAND=$1
 shift || true
-EXTRA_ARGS=$*
+# Pass remaining arguments ($@) correctly to functions
 
 case "$COMMAND" in
     up)
-        start_services "$EXTRA_ARGS"
+        start_services "$@"
         ;;
     down)
         stop_services
@@ -101,7 +136,7 @@ case "$COMMAND" in
         ;;
     restart)
         stop_services
-        start_services "$EXTRA_ARGS"
+        start_services "$@"
         ;;
     *)
         usage

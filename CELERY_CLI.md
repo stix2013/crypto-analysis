@@ -8,90 +8,128 @@ This document provides instructions on how to interact with the Celery worker in
     ```bash
     ./docker-manage.sh up
     ```
-2.  **Environment Variables**: Ensure you have a `.env` file in the project root or set the required variables (e.g., `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`).
-    - Defaults: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
+2.  **Environment Variables**: Ensure you have a `.env` file in the project root or set the required variables.
+    - `CELERY_BROKER_URL`: `redis://localhost:6379/0` (host) or `redis://redis:6379/0` (Docker)
+    - `CELERY_RESULT_BACKEND`: Same as broker.
+    - `CELERY_LOG_LEVEL`: defaults to `info`.
 
 ---
 
-## 1. Monitoring the Worker
+## 1. Monitoring & Observability
 
-### Using Docker (Recommended)
-You can inspect the worker status directly from the container:
+### Worker Status
+
+Check if workers are online and responding:
+
 ```bash
+# Within Docker
 docker exec -it crypto-worker-worker-1 celery -A celery_app status
-```
 
-### Using Host Machine
-Ensure you have the requirements installed (`pip install -r requirements.txt`) and set your `PYTHONPATH`:
-```bash
-export PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)/worker
-export CELERY_BROKER_URL=redis://localhost:6379/0
-export CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
+# From Host (requires venv active)
 celery -A worker.celery_app status
 ```
 
-### Using Flower (Web UI)
-Flower is a real-time web-based monitoring tool for Celery.
+### Viewing Logs (Crucial for Debugging)
+
+To see real-time output from the worker (training progress, errors, etc.):
+
+```bash
+docker logs -f crypto-worker-worker-1
+```
+
+### Flower (Web UI)
+
+Flower provides a powerful web interface for monitoring tasks, workers, and queues.
+
 - **URL**: [http://localhost:5555](http://localhost:5555)
-- **Features**: Monitor task progress, view worker stats, and inspect task results.
+- **Key Features**:
+  - **Task Progress**: Watch tasks as they execute.
+  - **Worker Stats**: View CPU/Memory usage per worker.
+  - **Broker**: Inspect the Redis queues.
+  - **History**: Review past task results and execution times.
 
 ---
 
 ## 2. Triggering Tasks via CLI
 
-You can trigger tasks using the `celery call` command.
+Use `celery call` to trigger tasks. Adding `--wait` will make the command block until the task is complete and print the result.
 
 ### Example: Fetch Market Data
+
 ```bash
-# Within Docker
+# Asynchronous (returns task ID immediately)
 docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
 
-# From Host
-celery -A worker.celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
+# Synchronous (waits for result)
+docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]' --wait
 ```
 
-### Example: Train Model
+### Example: Full Training Pipeline
+
 ```bash
-docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}'
+docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}' --wait
 ```
 
-### Example: Run Prediction
+### Example: Orchestrated Workflow
+
+Trigger both training and backtesting in one go:
+
 ```bash
-# Note: Ensure the model path is accessible to the worker container
-docker exec -it crypto-worker-worker-1 celery -A celery_app call run_prediction --args='["/app/signals/model_ethusdt.joblib", "ETHUSDT"]'
+docker exec -it crypto-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT", "1h", 2000]' --wait
 ```
 
 ---
 
-## 3. Available Tasks Reference
+## 3. Task Management & Inspection
+
+| Command                                        | Description                                         |
+| :--------------------------------------------- | :-------------------------------------------------- |
+| `celery -A worker.celery_app inspect active`   | List currently executing tasks.                      |
+| `celery -A worker.celery_app inspect reserved` | List tasks waiting in the queue.                    |
+| `celery -A worker.celery_app inspect stats`    | Detailed worker internal statistics.                |
+| `celery -A worker.celery_app result <task_id>` | Fetch the result/status of a specific task.         |
+| `celery -A worker.celery_app purge`            | **WARNING**: Clears all pending tasks from queues.  |
+| `celery -A worker.celery_app control terminate <task_id>` | Force stop a running task.                |
+
+---
+
+## 4. Available Tasks Reference
 
 The following tasks are defined in `worker/tasks.py`:
 
-| Task Name | Arguments | Description |
-| :--- | :--- | :--- |
-| `fetch_market_data` | `symbol`, `interval`, `bars` | Fetches historical data from Binance. |
-| `train_model` | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir` | Trains an online learning model. |
-| `run_prediction` | `model_path`, `symbol`, `interval`, `bars` | Generates signals using a trained model. |
-| `run_backtest` | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission` | Runs a backtest from a signals CSV. |
-| `train_and_backtest`| `symbol`, `interval`, `bars`, `warmup_bars` | Orchestrates training and backtesting. |
+| Task Name            | Arguments                                                                    | Description                                      |
+| :------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------- |
+| `fetch_market_data`  | `symbol`, `interval`, `bars`                                                 | Fetches OHLCV data from Binance.                 |
+| `train_model`        | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir`, `model_dir` | Trains online model and saves signals/generator. |
+| `run_prediction`     | `model_path`, `symbol`, `interval`, `bars`                                   | Generates real-time signals from saved model.   |
+| `run_backtest`       | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission`        | Evaluates signal performance on historical data. |
+| `train_and_backtest` | `symbol`, `interval`, `bars`, `warmup_bars`                                  | Sequential pipeline for training and validation. |
 
 ---
 
-## 4. Useful Commands
+## 5. Components Overview
 
-| Command | Description |
-| :--- | :--- |
-| `celery -A worker.celery_app inspect ping` | Ping the worker. |
-| `celery -A worker.celery_app inspect active` | List active tasks. |
-| `celery -A worker.celery_app inspect stats` | Get worker statistics. |
-| `celery -A worker.celery_app result <task_id>` | Get the result of a specific task. |
-| `celery -A worker.celery_app purge` | Clear all messages from all configured task queues. |
+- **Worker**: Executes the actual Python code for data fetching and ML.
+- **Beat**: A scheduler that triggers periodic tasks. Currently running but requires a `beat_schedule` configuration in `celery_app.py` to be active.
+- **Flower**: Web-based monitoring tool.
+- **Redis**: Acts as both the **Message Broker** (transporting tasks) and **Result Backend** (storing results).
 
 ---
 
-## 5. Troubleshooting
+## 6. Data Locations
 
-- **Redis Connection Error**: Ensure the Redis container is running and healthy. Check with `./docker-manage.sh status`.
-- **ModuleNotFoundError**: Ensure `PYTHONPATH` includes `src` and `worker` directories if running from the host.
-- **Permission Denied**: If the worker cannot write to `/app/signals` or `/app/models`, ensure the Docker volumes are correctly mounted and permissions are set.
+By default, the worker saves artifacts to the following locations inside the container, which are persisted to Docker volumes:
+
+- **Signals (CSVs)**: `/app/signals` (Volume: `trade_signal`)
+- **Models (.joblib)**: `/app/models` (Volume: `trade_model`)
+
+**Note:** You can override these locations by passing `output_dir` (for signals) or `model_dir` (for models) to the `train_model` task.
+
+---
+
+## 7. Troubleshooting
+
+- **Redis Connection Error**: Check if Redis is up with `./docker-manage.sh status`. If running from host, ensure `CELERY_BROKER_URL` points to `localhost`.
+- **Worker Hangs on Training**: Training large models or fetching massive data can take time. Use `docker logs` to verify progress or Flower to check if the worker is still "active".
+- **ModuleNotFoundError**: When running from host, ensure you have run `pip install -e .` or set `PYTHONPATH` correctly as shown in Section 1.
+- **Data Persistence**: Signals and models are saved to Docker volumes (`trade_signal` and `trade_model`). Check `docker-compose.worker.yml` for exact mount points.

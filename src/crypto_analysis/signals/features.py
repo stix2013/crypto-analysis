@@ -233,22 +233,46 @@ class FeatureEngineer:
 
         # Linear regression trend
         for window in [14, 30]:
-            data[f"trend_slope_{window}"] = (
-                data["close"]
-                .rolling(window)
-                .apply(
-                    lambda x: np.polyfit(range(len(x)), x, 1)[0] / x.mean(),
-                    raw=True,
-                )
-            )
-            data[f"trend_r2_{window}"] = (
-                data["close"]
-                .rolling(window)
-                .apply(
-                    lambda x: np.corrcoef(range(len(x)), x)[0, 1] ** 2,
-                    raw=True,
-                )
-            )
+            # Use vectorized calculation for slope and R2
+            x = np.arange(window)
+            x_var = np.var(x)
+
+            def get_slope(y_window: np.ndarray) -> float:
+                if len(y_window) < window: return np.nan
+                return float(np.cov(x, y_window)[0, 1] / x_var)
+
+            def get_r2(y_window: np.ndarray) -> float:
+                if len(y_window) < window: return np.nan
+                return float(np.corrcoef(x, y_window)[0, 1] ** 2)
+            # Still using apply but we can make it faster by using more optimized math
+            # Actually, even better: use the closed form for rolling OLS
+            y = data["close"]
+
+            # slope = (N*sum(xy) - sum(x)*sum(y)) / (N*sum(x2) - sum(x)^2)
+            n = window
+            sum_x = np.sum(np.arange(n))
+            sum_x2 = np.sum(np.arange(n)**2)
+
+            sum_y = y.rolling(window=n).sum()
+            sum_xy = (y * np.arange(len(data))).rolling(window=n).sum()
+            # This sum_xy is sum(y_i * i).
+            # In the window, i goes from [t-n+1, ..., t]
+            # We want x to go from [0, ..., n-1]
+            # x_i = i - (t-n+1)
+            # sum(y_i * x_i) = sum(y_i * (i - t + n - 1)) = sum(y_i * i) - (t - n + 1) * sum(y_i)
+
+            t = np.arange(len(data))
+            sum_xy_relative = sum_xy - (t - n + 1) * sum_y
+
+            slope = (n * sum_xy_relative - sum_x * sum_y) / (n * sum_x2 - sum_x**2)
+            data[f"trend_slope_{window}"] = slope / data["close"].rolling(n).mean()
+
+            # For R2, we need sum_y2
+            sum_y2 = (y**2).rolling(window=n).sum()
+            # r = (n*sum_xy - sum_x*sum_y) / sqrt((n*sum_x2 - sum_x^2)(n*sum_y2 - sum_y^2))
+            denom = np.sqrt((n * sum_x2 - sum_x**2) * (n * sum_y2 - sum_y**2))
+            r = (n * sum_xy_relative - sum_x * sum_y) / denom
+            data[f"trend_r2_{window}"] = r**2
 
         return data
 

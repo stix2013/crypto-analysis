@@ -103,6 +103,13 @@ class OnlineSignalGenerator(SignalGenerator):
         print(f"[{self.name}] Initial training...")
 
         features_df = self.feature_engineer.create_features(data, include_targets=True)
+        if len(features_df) == 0:
+            raise ValueError(
+                f"[{self.name}] No valid samples after feature engineering. "
+                f"Input data had {len(data)} rows. "
+                "Ensure you have enough historical data for the requested features (e.g., MA-200)."
+            )
+
         self.feature_cols = self.feature_engineer.get_feature_columns(
             features_df, exclude_targets=True
         )
@@ -190,13 +197,17 @@ class OnlineSignalGenerator(SignalGenerator):
         return features_df[self.feature_cols]
 
     def generate(
-        self, data: pd.DataFrame, current_position: float | None = None
+        self,
+        data: pd.DataFrame,
+        current_position: float | None = None,
+        features_df: pd.DataFrame | None = None,
     ) -> list[Signal]:
         """Generate signals with online adaptation.
 
         Args:
             data: Market data
             current_position: Current position (optional)
+            features_df: Pre-calculated features (optional)
 
         Returns:
             List of trading signals
@@ -206,7 +217,9 @@ class OnlineSignalGenerator(SignalGenerator):
 
         regime = self.regime_detector.update(data)
 
-        features_df = self.feature_engineer.create_features(data)
+        if features_df is None:
+            features_df = self.feature_engineer.create_features(data)
+
         if len(features_df) == 0:
             return []
 

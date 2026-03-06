@@ -144,7 +144,8 @@ crypto-analysis/
 ├── tests/
 │   ├── online/                # Tests for continuous learning pipeline
 │   ├── signals/               # Tests for backtesting & signal logic
-│   └── data/                  # Tests for Binance API fetching
+│   ├── data/                  # Tests for Binance API fetching
+│   └── test_performance.py    # Performance & scaling benchmarks
 ├── scripts/
 │   ├── train_online.py        # Core training CLI
 │   └── predict.py             # Model inference CLI
@@ -260,8 +261,8 @@ class TechnicalIndicatorGenerator(SignalGenerator):
 - Use `pd.Timestamp` for dates, not raw strings
 
 ### Performance Considerations
-- Use vectorized operations over loops
-- Use `numba` for hot paths if needed
-- Cache computed indicators
-- Use `np.ndarray` for numerical arrays
-- Lazy evaluation for expensive computations
+- **Vectorized Operations**: Use NumPy and Pandas vectorized operations over loops. Closed-form solutions (e.g., for linear regression) are preferred over iterative `apply()` methods.
+- **Complexity Management**: Ensure training loops scale linearly $O(N)$. Pre-calculate features once for the entire dataset before entering iterative simulation loops.
+- **Benchmarking**: Use `tests/test_performance.py` to verify that feature calculation and training logic maintain acceptable performance as data size increases.
+- **Lazy Evaluation**: Use lazy evaluation for expensive computations and cache computed indicators where possible.
+- **Resource Usage**: ML models use PyTorch CPU-only to minimize infrastructure requirements while maintaining high inference speed.

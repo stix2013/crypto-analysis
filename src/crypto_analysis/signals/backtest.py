@@ -7,45 +7,141 @@ from tqdm import tqdm
 
 from crypto_analysis.signals.strategy import (
     DataHandler,
+    Order,
+    OrderType,
     PortfolioManager,
+    Side,
     Strategy,
 )
 from crypto_analysis.utils.analytics import PerformanceAnalyzer
 
 
 class Backtester:
-    """Event-driven backtesting engine.
+    """Backtesting engine for cryptocurrency trading strategies.
 
-    Simulates trading by iterating through historical data and
-    executing strategy decisions.
+    Supports both event-driven strategy testing and simple signal-based processing.
     """
 
     def __init__(
         self,
-        strategy: Strategy,
-        data: dict[str, pd.DataFrame],
+        strategy: Strategy | None = None,
+        data: dict[str, pd.DataFrame] | None = None,
         initial_equity: float = 10000.0,
         commission_rate: float = 0.001,
         slippage_pct: float = 0.0005,
+        **kwargs: Any,
     ) -> None:
         """Initialize backtester.
 
         Args:
-            strategy: Trading strategy to test
-            data: Dictionary mapping symbols to OHLCV DataFrames
+            strategy: Trading strategy to test (optional for signal-based)
+            data: Dictionary mapping symbols to OHLCV DataFrames (optional)
             initial_equity: Starting capital
             commission_rate: Trading commission rate
             slippage_pct: Expected slippage percentage
+            **kwargs: Additional arguments for backward compatibility
         """
         self.strategy = strategy
-        self.data = data
+        self.data = data or {}
         self.data_handler = DataHandler()
+
+        # Handle backward compatibility for initial_capital
+        equity = kwargs.get("initial_capital", initial_equity)
+        # Handle backward compatibility for commission
+        comm = kwargs.get("commission", commission_rate)
+
         self.portfolio = PortfolioManager(
-            initial_equity=initial_equity,
-            commission_rate=commission_rate,
+            initial_equity=equity,
+            commission_rate=comm,
             slippage_pct=slippage_pct,
         )
         self.equity_history: list[dict[str, Any]] = []
+
+    def process_signal(
+        self,
+        timestamp: pd.Timestamp,
+        symbol: str,
+        signal_type: str,
+        price: float,
+    ) -> None:
+        """Process a single trade signal.
+
+        Args:
+            timestamp: Signal timestamp
+            symbol: Trading pair symbol
+            signal_type: Signal type ('BUY', 'SELL', 'EXIT', 'CLOSE')
+            price: Execution price
+        """
+        # 1. Update data handler with current price
+        temp_df = pd.DataFrame(
+            {"close": [price]},
+            index=[timestamp],
+        )
+        self.data_handler.load_data(symbol, temp_df)
+
+        # 2. Determine target position size
+        target_size = 0.0
+        if signal_type.upper() == "BUY":
+            target_size = 1.0
+        elif signal_type.upper() == "SELL":
+            target_size = -1.0
+        elif signal_type.upper() in ["EXIT", "CLOSE"]:
+            target_size = 0.0
+        else:
+            # Ignore unknown signal types
+            return
+
+        # 3. Calculate order needed to reach target size
+        pos = self.portfolio.get_position(symbol)
+        current_size = pos.size if pos else 0.0
+
+        if current_size != target_size:
+            needed_size = target_size - current_size
+            order_side = Side.BUY if needed_size > 0 else Side.SELL
+
+            order = Order(
+                symbol=symbol,
+                side=order_side,
+                size=abs(needed_size),
+                order_type=OrderType.MARKET,
+                timestamp=timestamp,
+            )
+            self.portfolio.execute_order(order, self.data_handler)
+
+        # 4. Record equity
+        total_equity = self.portfolio.get_total_equity(self.data_handler)
+        self.equity_history.append(
+            {
+                "timestamp": timestamp,
+                "equity": total_equity,
+                "cash": self.portfolio.cash,
+                "positions": {s: p.size for s, p in self.portfolio.positions.items()},
+            }
+        )
+
+    def get_equity_curve(self) -> pd.Series:
+        """Get the equity curve as a pandas Series."""
+        if not self.equity_history:
+            return pd.Series()
+        df = pd.DataFrame(self.equity_history).set_index("timestamp")
+        return df["equity"]
+
+    def get_trades(self) -> pd.DataFrame:
+        """Get completed trades as a DataFrame."""
+        columns = ["timestamp", "symbol", "side", "size", "price", "pnl"]
+        trades = []
+        for order in self.portfolio.orders:
+            trades.append(
+                {
+                    "timestamp": order.timestamp,
+                    "symbol": order.symbol,
+                    "side": order.side.name,
+                    "size": order.size,
+                    "price": order.price,
+                    "pnl": order.metadata.get("pnl", 0.0),
+                }
+            )
+        return pd.DataFrame(trades, columns=columns)
 
     def run(self, start_idx: int = 100) -> dict[str, Any]:
         """Run the backtest simulation.
@@ -55,7 +151,15 @@ class Backtester:
 
         Returns:
             Dictionary with backtest results and metrics
+
+        Raises:
+            ValueError: If strategy or data not provided
         """
+        if self.strategy is None:
+            raise ValueError("Strategy must be provided for event-driven backtesting.")
+        if not self.data:
+            raise ValueError("Data must be provided for event-driven backtesting.")
+
         # Get common index (assuming aligned data or using first symbol)
         first_symbol = self.strategy.symbols[0]
         full_df = self.data[first_symbol]

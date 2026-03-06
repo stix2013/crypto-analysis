@@ -10,6 +10,7 @@ Signal generation system integrating machine learning, technical analysis, and s
 - **Signal Aggregation**: Combine multiple generators with weighted confidence, majority vote, or best confidence methods.
 - **Risk Management**: Integrated Stop-Loss (SL) and Take-Profit (TP) triggers, and dynamic volatility-adjusted position sizing.
 - **Backtesting & Optimization**: Robust event-driven engine with realistic execution, performance metrics (Sharpe/Sortino), and parameter grid search.
+- **High Performance**: Optimized $O(N)$ training loops and vectorized feature engineering (slope, R2) for high-frequency signal generation.
 - **Analytics & Visualization**: Equity curve plotting and drawdown analysis.
 
 ## Installation
@@ -29,6 +30,7 @@ pip install -e ".[dev]"
 # Use the helper script to train an online model on ETHUSDT
 ./run_training.sh ETHUSDT 15m 5000
 ```
+*Note: Signals are saved in `signals/signals_{symbol}_{interval}.csv` and models in `models/model_{symbol}_{interval}.joblib`.*
 
 ### 2. Manual Signal Generation
 ```python
@@ -48,7 +50,8 @@ For distributed task processing (fetching data, training models, backtesting), y
 #### Prerequisites
 1. **Redis** and **Worker** services must be running. Use the management script:
    ```bash
-   ./docker-manage.sh up
+   # Start with 2 worker instances
+   ./docker-manage.sh up --workers 2
    ```
 2. **Environment Variables**: Ensure you have a `.env` file in the project root or set the required variables (e.g., `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`).
    - Defaults: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
@@ -71,6 +74,12 @@ docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_da
 
 # Example: Train Model
 docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}'
+
+# Example: Run Prediction (looks for model_{symbol}_{interval}.joblib if first arg is symbol)
+docker exec -it crypto-worker-worker-1 celery -A celery_app call run_prediction --args='["ETHUSDT", "ETHUSDT", "15m", 200]'
+
+# Example: Train and Backtest
+docker exec -it crypto-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT"]' --kwargs='{"interval": "15m", "bars": 2000}'
 ```
 
 #### Available Tasks Reference
