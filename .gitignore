@@ -83,3 +83,7 @@ temp/
 
 .gemini/
 gha-creds-*.json
+
+# Worktrees
+.worktrees/
+worktrees/
