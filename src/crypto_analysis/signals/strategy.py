@@ -277,6 +277,7 @@ class PortfolioManager:
                     pnl = (current_position.entry_price - price) * order.size
 
                 self.realized_pnl += pnl
+                order.metadata["pnl"] = pnl
 
                 new_size = current_position.size + (
                     order.size if is_buy else -order.size
@@ -389,19 +390,33 @@ class MLStrategy(Strategy):
     Attributes:
         aggregator: SignalAggregator for combining signals
         symbols: List of symbols to trade
-
+        stop_loss_pct: Default stop loss percentage (e.g. 0.02 for 2%)
+        take_profit_pct: Default take profit percentage (e.g. 0.04 for 4%)
+        kelly_fraction: Fraction of Kelly criterion to use (e.g. 0.5 for half-Kelly)
     """
 
-    def __init__(self, symbols: list[str], aggregator: SignalAggregator) -> None:
+    def __init__(
+        self,
+        symbols: list[str],
+        aggregator: SignalAggregator,
+        stop_loss_pct: float = 0.02,
+        take_profit_pct: float = 0.04,
+        kelly_fraction: float = 0.5,
+    ) -> None:
         """Initialize ML strategy.
 
         Args:
             symbols: List of symbols to trade
             aggregator: SignalAggregator instance
-
+            stop_loss_pct: Default stop loss percentage
+            take_profit_pct: Default take profit percentage
+            kelly_fraction: Fraction of Kelly criterion
         """
         super().__init__(symbols)
         self.aggregator = aggregator
+        self.stop_loss_pct = stop_loss_pct
+        self.take_profit_pct = take_profit_pct
+        self.kelly_fraction = kelly_fraction
 
     def generate_signals(
         self,
@@ -525,8 +540,8 @@ class MLStrategy(Strategy):
                             size=size_to_buy,
                             order_type=OrderType.MARKET,
                             timestamp=signal.timestamp,
-                            stop_loss=current_price * 0.98,
-                            take_profit=current_price * 1.04,
+                            stop_loss=current_price * (1 - self.stop_loss_pct),
+                            take_profit=current_price * (1 + self.take_profit_pct),
                         )
                     )
 
@@ -555,8 +570,8 @@ class MLStrategy(Strategy):
                             size=size_to_sell,
                             order_type=OrderType.MARKET,
                             timestamp=signal.timestamp,
-                            stop_loss=current_price * 1.02,
-                            take_profit=current_price * 0.96,
+                            stop_loss=current_price * (1 + self.stop_loss_pct),
+                            take_profit=current_price * (1 - self.take_profit_pct),
                         )
                     )
 
@@ -613,10 +628,11 @@ class MLStrategy(Strategy):
         # Simplified Kelly: f = (p*b - q) / b
         # where p = win probability (confidence), b = win/loss ratio
         p = signal.confidence
-        b = 1.5  # Assumed profit/loss ratio
+        # Use the target profit/loss ratio as b
+        b = self.take_profit_pct / (self.stop_loss_pct + 1e-10)
         q = 1 - p
 
         kelly = (p * b - q) / b if b != 0 else 0
 
-        # Use half-Kelly for safety
-        return max(0, min(kelly / 2, 1.0))
+        # Use partial Kelly for safety
+        return max(0, min(kelly * self.kelly_fraction, 1.0))

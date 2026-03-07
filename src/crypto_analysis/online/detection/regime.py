@@ -1,6 +1,3 @@
-"""Market regime detection using unsupervised learning."""
-
-import typing
 from collections import deque
 from typing import Any
 
@@ -42,24 +39,33 @@ class RegimeDetector:
         self.regime_history: deque[MarketRegime] = deque(maxlen=1000)
         self.feature_buffer: deque[np.ndarray] = deque(maxlen=lookback * 2)
 
-        self._regime_stats_data: dict = {"returns": [], "volatility": [], "volume": []}
+        # Stores regime-specific statistics
+        self._regime_stats: dict[int, dict[str, list[float]]] = {}
 
     @property
     def regime_stats(self) -> dict:
-        return self._regime_stats_data
+        return self._regime_stats
 
     @regime_stats.setter
     def regime_stats(self, value: dict) -> None:
-        self._regime_stats_data = value
+        self._regime_stats = value
 
-    def _get_regime_stat(self, regime_id: int) -> dict:
-        if regime_id not in self._regime_stats_data:
-            self._regime_stats_data[regime_id] = {
+    def _get_regime_stat(self, regime_id: int) -> dict[str, list[float]]:
+        """Get or initialize statistics for a specific regime.
+
+        Args:
+            regime_id: Numeric regime ID
+
+        Returns:
+            Dictionary with statistical lists
+        """
+        if regime_id not in self._regime_stats:
+            self._regime_stats[regime_id] = {
                 "returns": [],
                 "volatility": [],
                 "volume": [],
             }
-        return typing.cast(dict[Any, Any], self._regime_stats_data[regime_id])
+        return self._regime_stats[regime_id]
 
     def extract_regime_features(self, data: pd.DataFrame) -> np.ndarray:
         """Extract features for regime classification.

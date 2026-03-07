@@ -233,19 +233,6 @@ class FeatureEngineer:
 
         # Linear regression trend
         for window in [14, 30]:
-            # Use vectorized calculation for slope and R2
-            x = np.arange(window)
-            x_var = np.var(x)
-
-            def get_slope(y_window: np.ndarray) -> float:
-                if len(y_window) < window: return np.nan
-                return float(np.cov(x, y_window)[0, 1] / x_var)
-
-            def get_r2(y_window: np.ndarray) -> float:
-                if len(y_window) < window: return np.nan
-                return float(np.corrcoef(x, y_window)[0, 1] ** 2)
-            # Still using apply but we can make it faster by using more optimized math
-            # Actually, even better: use the closed form for rolling OLS
             y = data["close"]
 
             # slope = (N*sum(xy) - sum(x)*sum(y)) / (N*sum(x2) - sum(x)^2)
@@ -365,12 +352,11 @@ class FeatureEngineer:
             data["true_range"].rolling(10).sum()
         )
 
-        # Fractal dimension approximation
-        data["fractal_dim"] = (
-            np.log(data["true_range"].rolling(10).sum())
-            / np.log(10)
-            / np.log(data[["high", "low"]].std(axis=1))
-        )
+        # Fractal dimension approximation (simplified Sevcik)
+        # Uses path length vs range over window
+        path_length = data["true_range"].rolling(10).sum()
+        price_range = data["high"].rolling(10).max() - data["low"].rolling(10).min()
+        data["fractal_dim"] = 1 + np.log10(path_length / (price_range + 1e-10)) / np.log10(10)
 
         return data
 

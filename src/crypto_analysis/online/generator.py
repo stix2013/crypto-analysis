@@ -290,19 +290,17 @@ class OnlineSignalGenerator(SignalGenerator):
             self.samples_since_update = 0
 
         timestamp = data.index[-1]
+
+        # Robust symbol extraction
         symbol = getattr(data, "symbol", "UNKNOWN")
-        if symbol == "UNKNOWN" and hasattr(data.index, "name") and data.index.name:
-            symbol = data.index.name
-
-        # Try to get symbol from first row if it exists as a column
-        if "symbol" in data.columns:
-            symbol = data.columns.get_loc("symbol")
-            if isinstance(symbol, int):
-                symbol = data["symbol"].iloc[-1]
-
-        # If still unknown, use the name of the generator as a hint or default
         if symbol == "UNKNOWN":
-            symbol = self.name.split("_")[-1] if "_" in self.name else "BTC"
+            if "symbol" in data.columns:
+                symbol = data["symbol"].iloc[-1]
+            elif hasattr(data.index, "name") and data.index.name:
+                symbol = data.index.name
+            else:
+                # Use name as hint, e.g. Online_BTC -> BTC
+                symbol = self.name.split("_")[-1] if "_" in self.name else "BTC"
 
         signals = []
 

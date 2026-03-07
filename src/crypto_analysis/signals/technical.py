@@ -79,7 +79,11 @@ class TechnicalPatternGenerator(SignalGenerator):
 
         signals = []
         timestamp = data.index[-1]
-        symbol = "BTC"
+
+        # Extract symbol from data attributes or columns
+        symbol = getattr(data, "symbol", "BTC")
+        if "symbol" in data.columns:
+            symbol = data["symbol"].iloc[-1]
 
         # Check each pattern
         for pattern_name, pattern_func in self.patterns.items():

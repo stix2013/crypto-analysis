@@ -6,5 +6,12 @@
   },
   "experimental": {
     "plan": true
+  },
+  "skills": {
+    "disabled": [
+      "bun-development",
+      "chrome-devtools",
+      "tailwind-design-system"
+    ]
   }
 }

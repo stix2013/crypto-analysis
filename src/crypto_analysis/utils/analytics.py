@@ -82,15 +82,35 @@ class PerformanceAnalyzer:
     @staticmethod
     def _calculate_trade_metrics(orders: list[Any]) -> dict[str, Any]:
         """Calculate metrics related to individual trades."""
-        # This is a simplification; a "trade" usually spans multiple orders
-        # For now, we'll just use the number of orders as a proxy
-        if not orders:
-            return {"num_trades": 0, "win_rate": 0.0, "profit_factor": 0.0}
+        # A 'trade' here is any order that realized PnL (i.e. reducing or closing a position)
+        pnl_orders = [o for o in orders if "pnl" in o.metadata]
 
-        # To calculate real win rate, we'd need to pair entries and exits
-        # For a simplified version, we return basic counts
+        if not pnl_orders:
+            return {
+                "num_trades": 0,
+                "win_rate": 0.0,
+                "profit_factor": 0.0,
+                "avg_pnl": 0.0,
+            }
+
+        pnls = np.array([o.metadata["pnl"] for o in pnl_orders])
+        wins = pnls[pnls > 0]
+        losses = pnls[pnls < 0]
+
+        win_rate = len(wins) / len(pnls)
+
+        # Profit factor = Gross Profit / Gross Loss
+        gross_profit = wins.sum() if len(wins) > 0 else 0.0
+        gross_loss = abs(losses.sum()) if len(losses) > 0 else 0.0
+        profit_factor = gross_profit / (gross_loss + 1e-10)
+
         return {
-            "num_trades": len(orders),
+            "num_trades": len(pnl_orders),
+            "win_rate": float(win_rate),
+            "profit_factor": float(profit_factor),
+            "avg_pnl": float(pnls.mean()),
+            "total_gross_profit": float(gross_profit),
+            "total_gross_loss": float(gross_loss),
             "num_symbols": len({o.symbol for o in orders}),
         }
 
