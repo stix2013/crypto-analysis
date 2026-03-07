@@ -9,6 +9,11 @@ from crypto_analysis.online.generator import OnlineSignalGenerator
 from crypto_analysis.signals.backtest import Backtester
 from dotenv import load_dotenv
 
+try:
+    from worker.webhook import send_webhook
+except ImportError:
+    from webhook import send_webhook  # type: ignore[no-redef]
+
 load_dotenv()
 
 
@@ -101,7 +106,7 @@ def train_model(
 
     joblib.dump(generator, model_file)
 
-    return {
+    result = {
         "symbol": symbol,
         "interval": interval,
         "bars": len(data),
@@ -111,6 +116,10 @@ def train_model(
         "model_file": str(model_file),
         "total_signals": len(signals),
     }
+
+    send_webhook("training_complete", result)
+
+    return result
 
 
 @shared_task(name="run_prediction")
@@ -160,6 +169,8 @@ def run_prediction(
                 "regime": sig.metadata.get("regime", "unknown"),
             }
         )
+
+    send_webhook("prediction_complete", result)
 
     return result
 
@@ -215,7 +226,7 @@ def run_backtest(
     equity_curve = backtester.get_equity_curve()
     trades = backtester.get_trades()
 
-    return {
+    result = {
         "symbol": symbol,
         "initial_capital": initial_capital,
         "final_equity": float(equity_curve.iloc[-1])
@@ -225,6 +236,10 @@ def run_backtest(
         "winning_trades": int((trades["pnl"] > 0).sum()) if len(trades) > 0 else 0,
         "total_pnl": float(trades["pnl"].sum()) if len(trades) > 0 else 0.0,
     }
+
+    send_webhook("backtest_complete", result)
+
+    return result
 
 
 @shared_task(name="train_and_backtest")
@@ -236,4 +251,8 @@ def train_and_backtest(
 ) -> dict[str, Any]:
     train_result = train_model(symbol, interval, bars, warmup_bars)
     backtest_result = run_backtest(train_result["signals_file"], symbol, interval)
+
+    send_webhook("training_complete", train_result)
+    send_webhook("backtest_complete", backtest_result)
+
     return {"train": train_result, "backtest": backtest_result}
