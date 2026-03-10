@@ -1,0 +1,38 @@
+# Timezone
+TZ="<timezone>"
+
+# Postgres
+POSTGRES_DB=<db_name>
+POSTGRES_USER=<db_user>
+POSTGRES_PASSWORD=<db_password>
+POSTGRES_NON_ROOT_USER=<db_non_root_user>
+POSTGRES_NON_ROOT_PASSWORD=<db_non_root_password>
+
+# Binance
+BINANCE_API_KEY="<Binance API KE>"
+BINANCE_SECRET_KEY="<Binance Secret Key>"
+
+# Online Learning Training Settings
+TRAIN_SYMBOL="<symbol>"
+TRAIN_INTERVAL="<interval>"
+TRAIN_BARS=<bars>
+TRAIN_WARMUP_BARS=<warmup_bars>
+TRAIN_SEQUENCE_LENGTH=<sequence_length>
+
+# Online Learning Prediction Settings
+PREDICT_MODEL="<model_path>"
+PREDICT_SYMBOL="<symbol>"
+PREDICT_INTERVAL="<interval>"
+PREDICT_BARS=<bars>
+
+# Worker
+CELERY_BROKER_URL=<broker_url>
+CELERY_RESULT_BACKEND=<result_backend>
+CELERY_LOG_LEVEL=<log_level>
+
+CELERY_WORKER_CONCURRENCY=<concurrency>
+CELERY_TASK_TRACK_STARTED=<track_started>
+CELERY_TASK_TIME_LIMIT=<time_limit>
+CELERY_TASK_SOFT_TIME_LIMIT=<soft_time_limit>
+
+WEBHOOK_URL=<webhook_url>

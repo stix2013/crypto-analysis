@@ -17,15 +17,17 @@ except ImportError:
 load_dotenv()
 
 
-@shared_task(name="fetch_market_data")
+@shared_task(bind=True, name="fetch_market_data")
 def fetch_market_data(
+    self,
     symbol: str,
     interval: str,
     bars: int,
 ) -> dict[str, Any]:
+    bars = int(bars)
     client = create_client()
     data = client.fetch_historical(symbol, interval, bars)  # type: ignore[arg-type]
-    return {
+    result = {
         "symbol": symbol,
         "interval": interval,
         "bars": len(data),
@@ -33,9 +35,19 @@ def fetch_market_data(
         "end_time": str(data.index[-1]),
     }
 
+    send_webhook(
+        task_id=self.request.id,
+        task_name=self.name,
+        status="SUCCESS",
+        symbol=symbol,
+        interval=interval,
+        result=result,
+    )
 
-@shared_task(name="train_model")
-def train_model(
+    return result
+
+
+def _train_model_core(
     symbol: str,
     interval: str = "1h",
     bars: int = 5000,
@@ -44,6 +56,8 @@ def train_model(
     output_dir: str = "/app/signals",
     model_dir: str = "/app/models",
 ) -> dict[str, Any]:
+    bars = int(bars)
+    warmup_bars = int(warmup_bars)
     client = create_client()
     data = client.fetch_historical(symbol, interval, bars)  # type: ignore[arg-type]
 
@@ -59,8 +73,6 @@ def train_model(
     signals: list[dict[str, Any]] = []
     online_data = data.iloc[warmup_bars:]
 
-    # Pre-calculate features once for the entire dataset
-    # This avoids O(N^2) complexity in the loop
     all_features = generator.feature_engineer.create_features(data)
 
     for _i, idx in enumerate(online_data.index):
@@ -68,7 +80,6 @@ def train_model(
         if len(lookback) < generator.lookback_period:
             continue
 
-        # Pass the pre-calculated features for this lookback period
         current_features = all_features.loc[:idx]
         signal_list = generator.generate(lookback, features_df=current_features)
 
@@ -106,7 +117,7 @@ def train_model(
 
     joblib.dump(generator, model_file)
 
-    result = {
+    return {
         "symbol": symbol,
         "interval": interval,
         "bars": len(data),
@@ -117,18 +128,49 @@ def train_model(
         "total_signals": len(signals),
     }
 
-    send_webhook("training_complete", result)
+
+@shared_task(bind=True, name="train_model")
+def train_model(
+    self,
+    symbol: str,
+    interval: str = "1h",
+    bars: int = 5000,
+    warmup_bars: int = 1000,
+    sequence_length: int = 60,
+    output_dir: str = "/app/signals",
+    model_dir: str = "/app/models",
+) -> dict[str, Any]:
+    result = _train_model_core(
+        symbol=symbol,
+        interval=interval,
+        bars=bars,
+        warmup_bars=warmup_bars,
+        sequence_length=sequence_length,
+        output_dir=output_dir,
+        model_dir=model_dir,
+    )
+
+    send_webhook(
+        task_id=self.request.id,
+        task_name=self.name,
+        status="SUCCESS",
+        symbol=symbol,
+        interval=interval,
+        result=result,
+    )
 
     return result
 
 
-@shared_task(name="run_prediction")
+@shared_task(bind=True, name="run_prediction")
 def run_prediction(
+    self,
     model_path: str,
     symbol: str = "BTCUSDT",
     interval: str = "1h",
     bars: int = 200,
 ) -> dict[str, Any]:
+    bars = int(bars)
     model_file = Path(model_path)
 
     # If the path doesn't exist, try to construct it from symbol and interval in the default directory
@@ -170,13 +212,19 @@ def run_prediction(
             }
         )
 
-    send_webhook("prediction_complete", result)
+    send_webhook(
+        task_id=self.request.id,
+        task_name=self.name,
+        status="SUCCESS",
+        symbol=symbol,
+        interval=interval,
+        result=result,
+    )
 
     return result
 
 
-@shared_task(name="run_backtest")
-def run_backtest(
+def _run_backtest_core(
     signals_path: str,
     symbol: str = "BTCUSDT",
     interval: str = "1h",
@@ -226,7 +274,7 @@ def run_backtest(
     equity_curve = backtester.get_equity_curve()
     trades = backtester.get_trades()
 
-    result = {
+    return {
         "symbol": symbol,
         "initial_capital": initial_capital,
         "final_equity": float(equity_curve.iloc[-1])
@@ -237,22 +285,68 @@ def run_backtest(
         "total_pnl": float(trades["pnl"].sum()) if len(trades) > 0 else 0.0,
     }
 
-    send_webhook("backtest_complete", result)
+
+@shared_task(bind=True, name="run_backtest")
+def run_backtest(
+    self,
+    signals_path: str,
+    symbol: str = "BTCUSDT",
+    interval: str = "1h",
+    initial_capital: float = 10000.0,
+    commission: float = 0.0004,
+) -> dict[str, Any]:
+    result = _run_backtest_core(
+        signals_path=signals_path,
+        symbol=symbol,
+        interval=interval,
+        initial_capital=initial_capital,
+        commission=commission,
+    )
+
+    send_webhook(
+        task_id=self.request.id,
+        task_name=self.name,
+        status="SUCCESS",
+        symbol=symbol,
+        interval=interval,
+        result=result,
+    )
 
     return result
 
 
-@shared_task(name="train_and_backtest")
+@shared_task(bind=True, name="train_and_backtest")
 def train_and_backtest(
+    self,
     symbol: str,
     interval: str = "1h",
     bars: int = 5000,
     warmup_bars: int = 1000,
 ) -> dict[str, Any]:
-    train_result = train_model(symbol, interval, bars, warmup_bars)
-    backtest_result = run_backtest(train_result["signals_file"], symbol, interval)
+    bars = int(bars)
+    warmup_bars = int(warmup_bars)
 
-    send_webhook("training_complete", train_result)
-    send_webhook("backtest_complete", backtest_result)
+    # Call core logic functions directly to avoid blocking Celery subtasks
+    train_result = _train_model_core(
+        symbol=symbol,
+        interval=interval,
+        bars=bars,
+        warmup_bars=warmup_bars,
+    )
+
+    backtest_result = _run_backtest_core(
+        signals_path=train_result["signals_file"],
+        symbol=symbol,
+        interval=interval,
+    )
+
+    send_webhook(
+        task_id=self.request.id,
+        task_name=self.name,
+        status="SUCCESS",
+        symbol=symbol,
+        interval=interval,
+        result={"train": train_result, "backtest": backtest_result},
+    )
 
     return {"train": train_result, "backtest": backtest_result}

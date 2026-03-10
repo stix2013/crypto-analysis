@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 """Inference script for trained online learning model.
 
-Loads a trained model and generates trading signals for new data from Binance.
+Simple prediction script using the new prediction API.
 """
 
 import argparse
 import os
 from pathlib import Path
 
-import joblib
 import pandas as pd
 from crypto_analysis.data import create_client
+from crypto_analysis.signals.predict import Predictor, resolve_model_path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,149 +19,210 @@ load_dotenv()
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate signals with trained model")
     parser.add_argument(
-        "model",
+        "symbol",
         nargs="?",
-        default=os.environ.get("PREDICT_MODEL", "model_ethusdt.joblib"),
-        help="Path to trained model (.joblib file)",
-    )
-    parser.add_argument(
-        "--symbol",
-        default=os.environ.get("PREDICT_SYMBOL", "ETHUSDT"),
-        help="Trading pair symbol",
+        default=None,
+        help="Trading pair symbol (e.g., BTCUSDT). Uses PREDICT_SYMBOL env if not set.",
     )
     parser.add_argument(
         "--interval",
-        default=os.environ.get("PREDICT_INTERVAL", "15m"),
-        help="Kline interval",
+        "-i",
+        default=None,
+        help="Kline interval (e.g., 1h, 15m). Uses PREDICT_INTERVAL env if not set.",
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="Explicit model path. Overrides symbol+interval.",
     )
     parser.add_argument(
         "--bars",
         type=int,
-        default=int(os.environ.get("PREDICT_BARS", 200)),
-        help="Number of recent bars",
+        default=int(os.environ.get("PREDICT_BARS", 500)),
+        help="Number of recent bars to fetch",
     )
     parser.add_argument(
-        "--output", type=str, default=None, help="Output CSV file for signals"
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output CSV file for signals",
     )
     args = parser.parse_args()
 
-    model_path = Path(args.model)
-    if not model_path.exists():
-        print(f"Error: Model file not found: {model_path}")
+    if args.output is None and args.symbol and args.interval:
+        args.output = f"predict_{args.symbol.lower()}_{args.interval.lower()}.csv"
+
+    print("=" * 60)
+    print("Prediction - Trading Signal Generator")
+    print("=" * 60)
+
+    # Resolve model path
+    try:
+        model_path = resolve_model_path(
+            symbol=args.symbol,
+            model_path=args.model,
+            interval=args.interval,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        print(f"\nError: {e}")
         return
 
-    print("=" * 60)
-    print(f"Inference - {args.symbol} {args.interval}")
-    print("=" * 60)
+    print(f"\nModel: {model_path}")
 
-    print(f"\n[1/3] Loading model from {model_path}...")
-    generator = joblib.load(model_path)
-    print(f"  Model loaded: {generator.name}")
-    print(f"  Required lookback: {generator.lookback_period} bars")
+    # Generate predictions
+    try:
+        # If bars > 1, we might want to see multiple recent signals
+        # For OnlineSignalGenerator, generate() only returns the signal for the last bar.
+        # To get multiple signals, we need to simulate the sequence.
 
-    # Ensure we fetch enough bars for both feature engineering (200) and model sequence
-    # FeatureEngineer uses ma_200, so we need at least 200 bars just for features
-    feature_lookback = 200
-    fetch_bars = max(args.bars, feature_lookback + generator.sequence_length + 10)
+        predictor = Predictor(
+            symbol=args.symbol,
+            interval=args.interval,
+            model_path=args.model,
+        )
 
-    client = create_client()
+        client = create_client()
+        data = client.fetch_historical(predictor.symbol, predictor.interval, args.bars)
 
-    print(f"\n[2/3] Fetching {fetch_bars} recent bars...")
-    data = client.fetch_historical(args.symbol, args.interval, fetch_bars)
-    # Add symbol name to data for the generator
-    data.index.name = args.symbol
-    print(f"  Fetched {len(data)} candles")
-    print(f"  Date range: {data.index[0]} to {data.index[-1]}")
+        # Ensure symbol is attached for signal generator
+        data.symbol = predictor.symbol
 
-    print("\n[3/3] Generating signals...")
-    signals = generator.generate(data)
+        if data.empty:
+            print(f"No data found for {predictor.symbol}")
+            return
 
-    print(f"\n  Signals generated: {len(signals)}")
+        print(f"Fetched {len(data)} bars. Generating signals...")
+
+        signals = []
+        # We look at the last 50 bars by default for "recent" signals if bars is large
+        # or all bars if bars is small.
+        process_bars = min(len(data), 50)
+
+        for i in range(len(data) - process_bars, len(data)):
+            window = data.iloc[: i + 1]
+            if len(window) < predictor.model.lookback_period:
+                continue
+
+            sig_list = predictor.model.generate(window)
+            if sig_list:
+                signals.extend(sig_list)
+
+        # Always print the very latest prediction state
+        # Need at least 200 (MA) + 60 (LSTM) = 260 bars. Use 300 for safety.
+        feature_lookback = max(300, predictor.model.lookback_period)
+        latest_window = data.tail(feature_lookback)
+        if len(latest_window) >= feature_lookback:
+            # We need to get the regime and prediction manually since generate()
+            # might not have been called for the very last bar if it wasn't in signals
+            regime = predictor.model.regime_detector.update(latest_window)
+
+            # For prediction, we need to do what generate() does but without the threshold check
+            features_df = predictor.model.feature_engineer.create_features(
+                latest_window
+            )
+            if not features_df.empty:
+                feature_data = features_df[predictor.model.feature_cols].values
+                scaled = predictor.model.scaler.transform(feature_data)
+                current_sequence = scaled[-predictor.model.sequence_length :].reshape(
+                    1, predictor.model.sequence_length, -1
+                )
+                current_point = scaled[-1:].reshape(1, -1)
+
+                # Simple ensemble (similar to generate logic)
+                preds = []
+                if predictor.model.lstm:
+                    preds.append(predictor.model.lstm.predict(current_sequence)[0][0])
+                if predictor.model.nn:
+                    preds.append(predictor.model.nn.predict(current_point)[0] * 2 - 1)
+                preds.append(predictor.model.rf.predict(current_point)[0] * 2 - 1)
+
+                avg_pred = sum(preds) / len(preds)
+
+                print("\nCurrent Market State:")
+                print(f"  Symbol:    {predictor.symbol}")
+                print(f"  Timestamp: {data.index[-1]}")
+                print(f"  Regime:    {regime.name}")
+                print(f"  Ensemble:  {avg_pred:.4f}")
+
+                threshold = predictor.model._get_regime_threshold(regime)
+                print(f"  Threshold: {threshold:.4f}")
+
+                if abs(avg_pred) > threshold:
+                    direction = "LONG" if avg_pred > 0 else "SHORT"
+                    print(f"  Action:    ENTRY_{direction} (SIGNAL TRIGGERED)")
+                else:
+                    print("  Action:    WAIT (No signal)")
+            else:
+                print(
+                    "\nWarning: Insufficient data to calculate features for the latest bar."
+                )
+                print(f"Required lookback: {feature_lookback} bars.")
+        else:
+            print(
+                f"\nWarning: Not enough data for latest state report (needs {feature_lookback} bars, got {len(latest_window)})"
+            )
+
+    except Exception as e:
+        print(f"\nPrediction failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return
+
+    print(f"Signals generated: {len(signals)}")
 
     if signals:
+        # Build signal DataFrame
         signal_data = []
         for sig in signals:
+            # Fix symbol if it was extracted incorrectly from dataframe index
+            display_symbol = sig.symbol
+            if display_symbol == "open_time":
+                display_symbol = predictor.symbol
+
             signal_data.append(
                 {
                     "timestamp": sig.timestamp,
-                    "symbol": sig.symbol,
-                    "signal_type": sig.signal_type.name,
-                    "confidence": sig.confidence,
-                    "prediction": sig.metadata.get("ensemble_prediction", 0),
+                    "symbol": display_symbol,
+                    "type": sig.signal_type.name,
+                    "conf": f"{sig.confidence:.3f}",
+                    "pred": f"{sig.metadata.get('ensemble_prediction', 0):.4f}",
                     "regime": sig.metadata.get("regime", "unknown"),
                 }
             )
 
         signals_df = pd.DataFrame(signal_data)
-        signal_counts = signals_df["signal_type"].value_counts()
-        print("  Signal breakdown:")
-        for sig_type, count in signal_counts.items():
-            print(f"    {sig_type}: {count}")
 
+        # Print summary
+        print("\nSignal breakdown:")
+        counts = signals_df["type"].value_counts()
+        for sig_type, count in counts.items():
+            print(f"  {sig_type:15}: {count:3}")
+
+        # Save to CSV if requested
         if args.output:
             output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             signals_df.to_csv(output_path, index=False)
-            print(f"\n  Signals saved to: {output_path}")
+            print(f"\nSignals saved to: {output_path}")
 
-        print("\n  Signals:")
-        print(signals_df.to_string(index=False))
+        # Print signals
+        print("\nMost Recent Signals:")
+        print("-" * 80)
+        # Sort by timestamp to show most recent
+        signals_df = signals_df.sort_values("timestamp", ascending=False)
+        print(signals_df.head(20).to_string(index=False))
+        if len(signals_df) > 20:
+            print(f"... and {len(signals_df) - 20} more signals.")
+        print("-" * 80)
     else:
-        # Show debug info when no signals
-
-        features_df = generator.get_features(data)
-        if len(features_df) > 0:
-            # We need to reconstruct the ensemble prediction for debugging
-            scaled = generator.scaler.transform(features_df.values)
-            current_point = scaled[-1:].reshape(1, -1)
-
-            debug_preds = {}
-            if generator.lstm is not None and len(scaled) >= generator.sequence_length:
-                try:
-                    current_seq = scaled[-generator.sequence_length :].reshape(
-                        1, generator.sequence_length, -1
-                    )
-                    debug_preds["lstm"] = generator.lstm.predict(current_seq)[0][0]
-                except:
-                    pass
-
-            if generator.nn is not None:
-                try:
-                    debug_preds["nn"] = generator.nn.predict(current_point)[0] * 2 - 1
-                except:
-                    pass
-
-            try:
-                debug_preds["rf"] = generator.rf.predict(current_point)[0] * 2 - 1
-            except:
-                pass
-
-            try:
-                debug_preds["pa"] = (
-                    generator.pa_classifier.predict(current_point)[0] * 2 - 1
-                )
-            except:
-                pass
-
-            regime = generator.regime_detector.current_regime
-            threshold = generator._get_regime_threshold(regime) if regime else 0.1
-
-            available_weights = {m: generator.model_weights[m] for m in debug_preds}
-            total_w = sum(available_weights.values()) or 1.0
-            ensemble = sum(
-                debug_preds[m] * (available_weights[m] / total_w) for m in debug_preds
-            )
-
-            print("  No signals (below threshold)")
-            print(f"    Regime: {regime.name if regime else 'unknown'}")
-            print(f"    Threshold: {threshold:.4f}")
-            print(f"    Ensemble: {ensemble:.4f}")
-            print("    Individual predictions:")
-            for m, p in debug_preds.items():
-                w = available_weights[m] / total_w
-                print(f"      {m:4}: {p:7.4f} (weight: {w:.2f})")
+        print("\nNo signals generated (predictions below threshold)")
 
     print(f"\n{'=' * 60}")
-    print("Inference complete!")
+    print("Prediction complete!")
     print(f"{'=' * 60}")
 
 

@@ -5,8 +5,8 @@ Fetches historical data from Binance and trains online learning models
 to predict price direction for backtesting.
 
 Outputs:
-    - signals_<symbol>.csv: Trading signals
-    - model_<symbol>.joblib: Trained model (can be loaded for inference)
+    - signals_{symbol}_{interval}.csv: Trading signals
+    - model_{symbol}_{interval}.joblib: Trained model (can be loaded for inference)
 """
 
 import argparse
@@ -64,9 +64,11 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.output is None:
-        args.output = f"signals_{args.symbol.lower()}.csv"
+        args.output = f"signals_{args.symbol.lower()}_{args.interval.lower()}.csv"
     if args.model_output is None:
-        args.model_output = f"model_{args.symbol.lower()}.joblib"
+        args.model_output = (
+            f"model_{args.symbol.lower()}_{args.interval.lower()}.joblib"
+        )
 
     print("=" * 60)
     print(f"Online Learning Training - {args.symbol} {args.interval}")
@@ -75,9 +77,17 @@ def main() -> None:
     client = create_client()
 
     print(f"\n[1/4] Fetching {args.bars} bars of historical data...")
-    data = client.fetch_historical(args.symbol, args.interval, args.bars)
-    print(f"Fetched {len(data)} candles")
-    print(f"Date range: {data.index[0]} to {data.index[-1]}")
+    try:
+        data = client.fetch_historical(args.symbol, args.interval, args.bars)
+        if data.empty:
+            print(f"Error: No data returned for {args.symbol} {args.interval}")
+            return
+        data.symbol = args.symbol
+        print(f"Fetched {len(data)} candles")
+        print(f"Date range: {data.index[0]} to {data.index[-1]}")
+    except Exception as e:
+        print(f"\nError fetching data: {e}")
+        return
 
     print(f"\n[2/4] Initial training on first {args.warmup_bars} bars...")
     warmup_data = data.iloc[: args.warmup_bars]
@@ -93,13 +103,18 @@ def main() -> None:
     except Exception as e:
         print(f"Initial training failed: {e}")
         print("Attempting with more data...")
-        warmup_data = data.iloc[: min(args.warmup_bars * 2, len(data) - 100)]
+        warmup_limit = min(args.warmup_bars * 2, len(data) - 100)
+        if warmup_limit <= args.warmup_bars:
+            print("Not enough data to expand warmup. Aborting.")
+            return
+        warmup_data = data.iloc[:warmup_limit]
         generator.fit(warmup_data)
 
     print("\n[3/4] Running online learning simulation...")
 
     signals = []
     online_data = data.iloc[args.warmup_bars :]
+    total_bars = len(online_data)
 
     for i, idx in enumerate(online_data.index):
         lookback = data.loc[:idx]
@@ -120,8 +135,11 @@ def main() -> None:
                     }
                 )
 
-        if (i + 1) % 500 == 0:
-            print(f"  Processed {i + 1}/{len(online_data)} bars...")
+        if (i + 1) % 500 == 0 or (i + 1) == total_bars:
+            percent = ((i + 1) / total_bars) * 100
+            print(
+                f"  Progress: {percent:6.1f}% | Processed {i + 1:5}/{total_bars:5} bars..."
+            )
 
     print("\n[4/4] Results:")
     print(f"  Total signals generated: {len(signals)}")

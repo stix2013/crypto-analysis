@@ -1,18 +1,16 @@
 #!/bin/bash
 
-# run_training.sh - Helper script for online learning training
+# run_predict.sh - Helper script for model inference
 #
-# Usage: ./run_training.sh [SYMBOL] [INTERVAL] [BARS]
-# Example: ./run_training.sh BTCUSDT 1h 2000
+# Usage: ./run_predict.sh [SYMBOL] [INTERVAL] [BARS]
+# Example: ./run_predict.sh BTCUSDT 1h 200
 
 set -e
 
 # --- Default Configuration ---
 SYMBOL=${1:-"ETHUSDT"}
 INTERVAL=${2:-"15m"}
-BARS=${3:-5000}
-WARMUP_BARS=${WARMUP_BARS:-1000}
-SEQ_LENGTH=${SEQ_LENGTH:-60}
+BARS=${3:-200}
 
 # --- Environment Setup ---
 BASE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -22,8 +20,8 @@ if [ -f "$BASE_DIR/.env" ]; then
     export $(grep -v '^#' "$BASE_DIR/.env" | xargs)
 fi
 
-# Ensure output directories exist
-mkdir -p "$BASE_DIR/signals" "$BASE_DIR/models"
+# Ensure output directory exists
+mkdir -p "$BASE_DIR/signals"
 
 # Determine Python command
 PYTHON_CMD="python3"
@@ -36,26 +34,21 @@ export PYTHONPATH="$BASE_DIR/src:$PYTHONPATH"
 
 # --- Execution ---
 echo "============================================================"
-echo " Starting Crypto Analysis Training Pipeline"
+echo " Starting Crypto Analysis Prediction"
 echo " Symbol:   $SYMBOL"
 echo " Interval: $INTERVAL"
 echo " Bars:     $BARS"
 echo "============================================================"
 
 # --- Output ---
-OUTPUT_SIGNALS="signals_${SYMBOL,,}_${INTERVAL}.csv"
-OUTPUT_MODEL="model_${SYMBOL,,}_${INTERVAL}.joblib"
+OUTPUT_SIGNALS="predict_${SYMBOL,,}_${INTERVAL}.csv"
 
-$PYTHON_CMD "$BASE_DIR/scripts/train_online.py" "$SYMBOL" \
+$PYTHON_CMD "$BASE_DIR/scripts/predict.py" "$SYMBOL" \
     --interval "$INTERVAL" \
     --bars "$BARS" \
-    --warmup-bars "$WARMUP_BARS" \
-    --sequence-length "$SEQ_LENGTH" \
-    --output "$BASE_DIR/signals/${OUTPUT_SIGNALS}" \
-    --model-output "$BASE_DIR/models/${OUTPUT_MODEL}"
+    --output "$BASE_DIR/signals/${OUTPUT_SIGNALS}"
 
 echo ""
-echo "[Success] Training pipeline completed."
+echo "[Success] Prediction completed."
 echo "[Output] Signals: ./signals/${OUTPUT_SIGNALS}"
-echo "[Output] Model:   ./models/${OUTPUT_MODEL}"
 echo "============================================================"

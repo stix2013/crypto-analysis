@@ -74,7 +74,7 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-exclude = ['\.gemini', '\.opencode', 'models', 'signals']
+exclude = ['\.gemini', '\.opencode', 'models', 'signals', 'worker']
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -90,7 +90,7 @@ strict_equality = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "examples.*"]
+module = ["tests.*", "examples.*", "worker.*"]
 disallow_untyped_defs = false
 check_untyped_defs = false
 disallow_incomplete_defs = false

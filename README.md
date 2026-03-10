@@ -30,28 +30,48 @@ pip install -e ".[dev]"
 # Use the helper script to train an online model on ETHUSDT
 ./run_training.sh ETHUSDT 15m 5000
 ```
-*Note: Signals are saved in `signals/signals_{symbol}_{interval}.csv` and models in `models/model_{symbol}_{interval}.joblib`.*
+*Note: Signals are saved in signals/signals_{symbol}_{interval}.csv and models in models/model_{symbol}_{interval}.joblib.*
 
-### 2. Manual Signal Generation
-```python
-import pandas as pd
-from crypto_analysis.signals import (
-    RandomForestSignalGenerator,
-    TechnicalPatternGenerator,
-    SignalAggregator,
-)
+### 2. Prediction (New Simple API)
 
-# ... (see examples/basic_usage.py for details)
+#### Command Line
+```bash
+# Uses PREDICT_SYMBOL and PREDICT_INTERVAL from .env
+python scripts/predict.py
+
+# Specify symbol and interval (resolves to models/model_btcusdt_1h.joblib)
+python scripts/predict.py BTCUSDT -i 1h
+
+# Use explicit model path
+python scripts/predict.py --model models/model_ethusdt_15m.joblib
+
+# Save signals to CSV (defaults to predict_ethusdt_15m.csv if -o omitted)
+python scripts/predict.py ETHUSDT -i 15m -o signals.csv
 ```
 
-### 3. Using Celery Worker
+#### Python API
+```python
+from crypto_analysis.signals.predict import predict, Predictor
+
+# One-liner prediction (auto-fetches data from Binance)
+signals = predict("BTCUSDT", interval="1h")
+signals = predict("ETHUSDT")  # Uses PREDICT_INTERVAL from .env
+signals = predict(model_path="models/custom.joblib")  # Explicit path
+
+# Reusable predictor (efficient for multiple calls)
+predictor = Predictor("BTCUSDT", interval="1h")
+signals = predictor.predict()
+signals = predictor.predict(data=my_dataframe)  # With custom data
+```
+
+## Using Celery Worker
 For distributed task processing (fetching data, training models, backtesting), the project uses Celery with Redis.
 
-#### Infrastructure Components
+### Infrastructure Components
 - **Data (`docker-compose.data.yml`)**: Provides Redis as the message broker.
 - **Worker (`docker-compose.worker.yml`)**: Runs the Celery worker, beat scheduler, and Flower monitor.
 
-#### Management Script (Recommended)
+### Management Script (Recommended)
 Use `./docker-manage.sh` to orchestrate both Data and Worker services seamlessly:
 
 ```bash
@@ -61,44 +81,38 @@ Use `./docker-manage.sh` to orchestrate both Data and Worker services seamlessly
 # Start with multiple worker instances
 ./docker-manage.sh up --workers 3
 
-# Check status of all services
+# Check health of all services
 ./docker-manage.sh status
 
 # Rebuild and restart
 ./docker-manage.sh restart --build
-
-# Stop all services
-./docker-manage.sh down
 ```
 
-#### Environment Configuration
-Ensure you have a `.env` file in the project root (see `worker/.env.example` for reference).
-- **Broker**: `redis://localhost:6379/0` (from host) or `redis://redis:6379/0` (within Docker).
+### Monitoring the Worker
+- **Using Docker**: `docker compose -p analysis-worker -f docker-compose.worker.yml ps` (Checks health status)
+- **Using Logs**: `docker logs -f analysis-worker-worker-1`
+- **Using Flower (Web UI)**: [http://localhost:5555](http://localhost:5555)
 
-#### Monitoring the Worker
-- **Using Docker (Recommended)**: `docker exec -it crypto-worker-worker-1 celery -A celery_app status`
-- **Using Host Machine**:
-  ```bash
-  export PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)/worker
-  export CELERY_BROKER_URL=redis://localhost:6379/0
-  celery -A worker.celery_app status
-  ```
-- **Using Flower (Web UI)**: [http://localhost:5555](http://localhost:5555) (available when running worker services).
+### Webhook Notifications
+The worker can be configured to send task results via webhook. Set `WEBHOOK_URL` in your `.env`:
+```bash
+WEBHOOK_URL="http://host.docker.internal:8000/api/tasks/webhook/celery-callback"
+```
 
-#### Triggering Tasks via CLI
+### Triggering Tasks via CLI
 You can trigger tasks using the `celery call` command:
 ```bash
 # Example: Fetch Market Data
-docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
+docker exec -it analysis-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
 
 # Example: Train Model
-docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}'
+docker exec -it analysis-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}'
 
-# Example: Run Prediction (looks for model_{symbol}_{interval}.joblib if first arg is symbol)
-docker exec -it crypto-worker-worker-1 celery -A celery_app call run_prediction --args='["ETHUSDT", "ETHUSDT", "15m", 200]'
+# Example: Run Prediction
+docker exec -it analysis-worker-worker-1 celery -A celery_app call run_prediction --args='["models/model_btcusdt_1h.joblib", "BTCUSDT", "1h", 200]'
 
 # Example: Train and Backtest
-docker exec -it crypto-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT"]' --kwargs='{"interval": "15m", "bars": 2000}'
+docker exec -it analysis-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT", "1h", 2000]'
 ```
 
 #### Available Tasks Reference
@@ -107,9 +121,9 @@ The following tasks are defined in `worker/tasks.py`:
 | Task Name | Arguments | Description |
 | :--- | :--- | :--- |
 | `fetch_market_data` | `symbol`, `interval`, `bars` | Fetches historical data from Binance. |
-| `train_model` | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir` | Trains an online learning model. |
+| `train_model` | `symbol`, `interval`, `bars`, `warmup_bars` | Trains an online learning model. |
 | `run_prediction` | `model_path`, `symbol`, `interval`, `bars` | Generates signals using a trained model. |
-| `run_backtest` | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission` | Runs a backtest from a signals CSV. |
+| `run_backtest` | `signals_path`, `symbol`, `interval` | Runs a backtest from a signals CSV. |
 | `train_and_backtest`| `symbol`, `interval`, `bars`, `warmup_bars` | Orchestrates training and backtesting. |
 
 For more detailed commands, see the full CLI reference in [CELERY_CLI.md](./CELERY_CLI.md).
@@ -130,36 +144,9 @@ crypto-analysis/
 ├── docker-compose.data.yml # Data infrastructure (Redis)
 ├── docker-compose.worker.yml # Worker infrastructure (Celery)
 ├── docker-manage.sh    # Multi-container management script
-├── .env.example        # Environment template
-├── run_training.sh     # Training runner
 ├── pyproject.toml
 └── README.md
 ```
-
-## Signal Types
-
-- `ENTRY_LONG`: Buy signal
-- `ENTRY_SHORT`: Short sell signal
-- `EXIT_LONG`: Close long position
-- `EXIT_SHORT`: Close short position
-- `HOLD`: No action
-- `RISK_OFF`: Emergency exit
-
-
-## Generators
-
-### ML Generators
-
-- **LSTMSignalGenerator**: PyTorch LSTM-based sequence prediction with attention
-- **RandomForestSignalGenerator**: Random Forest classifier with feature importance
-
-### Technical Generators
-
-- **TechnicalPatternGenerator**: Double top/bottom, breakouts, mean reversion
-
-### Statistical Generators
-
-- **StatisticalArbitrageGenerator**: Bollinger Bands and RSI extremes
 
 ## License
 

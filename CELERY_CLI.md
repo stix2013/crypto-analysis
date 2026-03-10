@@ -12,6 +12,7 @@ This document provides instructions on how to interact with the Celery worker in
     - `CELERY_BROKER_URL`: `redis://localhost:6379/0` (host) or `redis://redis:6379/0` (Docker)
     - `CELERY_RESULT_BACKEND`: Same as broker.
     - `CELERY_LOG_LEVEL`: defaults to `info`.
+    - `WEBHOOK_URL`: URL for task result callbacks (e.g., `http://host.docker.internal:8000/api/tasks/webhook/celery-callback`).
 
 ---
 
@@ -23,18 +24,32 @@ Check if workers are online and responding:
 
 ```bash
 # Within Docker
-docker exec -it crypto-worker-worker-1 celery -A celery_app status
+docker exec -it analysis-worker-worker-1 celery -A celery_app status
 
 # From Host (requires venv active)
 celery -A worker.celery_app status
 ```
 
+### Health Checks
+
+All worker services have integrated health checks:
+
+- **Worker**: Uses `celery inspect ping`.
+- **Flower**: Monitors the `/healthcheck` HTTP endpoint.
+- **Beat**: Verified via process monitoring (`pgrep`).
+- **Redis**: Uses `redis-cli ping`.
+
+Check overall health status:
+```bash
+docker compose -p analysis-worker -f docker-compose.worker.yml ps
+```
+
 ### Viewing Logs (Crucial for Debugging)
 
-To see real-time output from the worker (training progress, errors, etc.):
+To see real-time output from the worker (training progress, errors, webhooks):
 
 ```bash
-docker logs -f crypto-worker-worker-1
+docker logs -f analysis-worker-worker-1
 ```
 
 ### Flower (Web UI)
@@ -58,16 +73,16 @@ Use `celery call` to trigger tasks. Adding `--wait` will make the command block 
 
 ```bash
 # Asynchronous (returns task ID immediately)
-docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
+docker exec -it analysis-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]'
 
 # Synchronous (waits for result)
-docker exec -it crypto-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]' --wait
+docker exec -it analysis-worker-worker-1 celery -A celery_app call fetch_market_data --args='["BTCUSDT", "1h", 100]' --wait
 ```
 
 ### Example: Full Training Pipeline
 
 ```bash
-docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}' --wait
+docker exec -it analysis-worker-worker-1 celery -A celery_app call train_model --args='["ETHUSDT"]' --kwargs='{"interval": "15m", "bars": 5000}' --wait
 ```
 
 ### Example: Orchestrated Workflow
@@ -75,12 +90,28 @@ docker exec -it crypto-worker-worker-1 celery -A celery_app call train_model --a
 Trigger both training and backtesting in one go:
 
 ```bash
-docker exec -it crypto-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT", "1h", 2000]' --wait
+docker exec -it analysis-worker-worker-1 celery -A celery_app call train_and_backtest --args='["BTCUSDT", "1h", 2000]' --wait
 ```
 
 ---
 
-## 3. Task Management & Inspection
+## 3. Webhook Integration
+
+Tasks automatically notify a configured `WEBHOOK_URL` upon completion. The payload follows the `CeleryCallbackRequest` schema:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `task_id` | `string` | Unique Celery task ID |
+| `task_name` | `string` | Name of the task |
+| `status` | `string` | `SUCCESS` or `FAILURE` |
+| `symbol` | `string` | (Optional) Trading symbol |
+| `interval` | `string` | (Optional) Timeframe |
+| `result` | `object` | (Optional) Task-specific result data |
+| `error` | `string` | (Optional) Error message if failed |
+
+---
+
+## 4. Task Management & Inspection
 
 | Command                                        | Description                                         |
 | :--------------------------------------------- | :-------------------------------------------------- |
@@ -93,9 +124,9 @@ docker exec -it crypto-worker-worker-1 celery -A celery_app call train_and_backt
 
 ---
 
-## 4. Available Tasks Reference
+## 5. Available Tasks Reference
 
-The following tasks are defined in `worker/tasks.py`:
+The following tasks are defined in `worker/tasks.py`. All numeric arguments (bars, capital, etc.) support both string and integer inputs from the CLI/API.
 
 | Task Name            | Arguments                                                                    | Description                                      |
 | :------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------- |
@@ -107,29 +138,28 @@ The following tasks are defined in `worker/tasks.py`:
 
 ---
 
-## 5. Components Overview
+## 6. Components Overview
 
 - **Worker**: Executes the actual Python code for data fetching and ML.
-- **Beat**: A scheduler that triggers periodic tasks. Currently running but requires a `beat_schedule` configuration in `celery_app.py` to be active.
-- **Flower**: Web-based monitoring tool.
+- **Beat**: A scheduler that triggers periodic tasks. Includes health monitoring via process checks.
+- **Flower**: Web-based monitoring tool with integrated health check.
 - **Redis**: Acts as both the **Message Broker** (transporting tasks) and **Result Backend** (storing results).
 
 ---
 
-## 6. Data Locations
+## 7. Data Locations
 
 By default, the worker saves artifacts to the following locations inside the container, which are persisted to Docker volumes:
 
 - **Signals (CSVs)**: `/app/signals` (Volume: `trade_signal`)
 - **Models (.joblib)**: `/app/models` (Volume: `trade_model`)
 
-**Note:** You can override these locations by passing `output_dir` (for signals) or `model_dir` (for models) to the `train_model` task.
-
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
-- **Redis Connection Error**: Check if Redis is up with `./docker-manage.sh status`. If running from host, ensure `CELERY_BROKER_URL` points to `localhost`.
-- **Worker Hangs on Training**: Training large models or fetching massive data can take time. Use `docker logs` to verify progress or Flower to check if the worker is still "active".
-- **ModuleNotFoundError**: When running from host, ensure you have run `pip install -e .` or set `PYTHONPATH` correctly as shown in Section 1.
-- **Data Persistence**: Signals and models are saved to Docker volumes (`trade_signal` and `trade_model`). Check `docker-compose.worker.yml` for exact mount points.
+- **Code Not Updating in Container**: Worker code is copied into the image during the build. If changes on the host aren't reflecting in the worker logs, run `./docker-manage.sh restart --build`.
+- **Webhook Connection Refused**: If the API is on the host, use `http://host.docker.internal:PORT`. Ensure `extra_hosts` is configured in `docker-compose.worker.yml`.
+- **422 Validation Error**: Check `worker/webhook.py` logs for specific validation details. Ensure the payload matches the expected Pydantic schema on the receiver.
+- **TypeError in Tasks**: Tasks now explicitly convert numeric inputs to `int`. Ensure `bars` or `warmup_bars` are valid numbers. Orchestrated tasks (like `train_and_backtest`) use shared core functions to avoid `RuntimeError` from `.get()`.
+- **Redis Connection Error**: Check if Redis is up with `./docker-manage.sh status`.

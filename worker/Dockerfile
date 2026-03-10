@@ -17,6 +17,7 @@ FROM python:3.14-slim AS production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local
@@ -24,7 +25,7 @@ COPY --from=builder /install /usr/local
 WORKDIR /app
 
 # Copy worker files directly to WORKDIR
-COPY worker/tasks.py worker/celery_app.py ./
+COPY worker/*.py ./
 
 # Copy the crypto_analysis package from src
 COPY src/crypto_analysis ./crypto_analysis

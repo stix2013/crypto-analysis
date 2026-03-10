@@ -209,6 +209,7 @@ class BinanceClient:
         Returns:
             DataFrame with OHLCV data
         """
+        bars = int(bars)
         # Initial fetch of latest data
         df = self.fetch_ohlcv(symbol, interval, limit=min(bars, 1500))
 

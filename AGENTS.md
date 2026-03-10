@@ -12,7 +12,8 @@ Signal generation system integrating machine learning, technical analysis, and s
 ./run_training.sh BTCUSDT 1h 5000
 
 # Run prediction/inference with trained model
-python scripts/predict.py models/model_1h_btcusdt.joblib --symbol BTCUSDT --interval 1h
+# Using resolved path: models/model_btcusdt_1h.joblib
+python scripts/predict.py BTCUSDT --interval 1h
 ```
 
 ### Testing
@@ -178,8 +179,10 @@ The system uses Celery for asynchronous task processing, including data fetching
 
 ### Best Practices for Tasks
 - **Decoupling**: Always use `@shared_task` instead of `@app.task` to prevent circular imports between the app configuration and task definitions.
+- **Type Safety**: Explicitly cast numeric arguments (e.g., `int(bars)`) at the start of the task. CLI/External triggers often pass strings.
+- **Orchestration**: To run logic from one task within another synchronously, refactor the core logic into a separate Python function (e.g., `_task_logic_core`) and call that function from both tasks. **Never use `.get()` or `.apply().get()` inside a task**, as it triggers Celery's blocking safety checks.
 - **Module Imports**: Import library code from `crypto_analysis.*` directly. The Docker environment sets `PYTHONPATH=/app` to enable this.
-- **ML Compatibility**: ML models (LSTM, Neural Network) include `TORCH_AVAILABLE` guards. Workers will skip ML updates if PyTorch is not fully initialized, but will continue processing technical/statistical signals.
+- **ML Compatibility**: ML models include `TORCH_AVAILABLE` guards. Workers will skip ML updates if PyTorch is not fully initialized.
 - **Pathing**: Use `/app/signals` and `/app/models` for persistent storage, mapped to Docker volumes.
 
 ### Running the Services
