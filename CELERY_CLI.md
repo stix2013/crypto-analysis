@@ -131,9 +131,9 @@ The following tasks are defined in `worker/tasks.py`. All numeric arguments (bar
 | Task Name            | Arguments                                                                    | Description                                      |
 | :------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------- |
 | `fetch_market_data`  | `symbol`, `interval`, `bars`                                                 | Fetches OHLCV data from Binance.                 |
-| `train_model`        | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir`, `model_dir` | Trains online model and saves signals/generator. |
-| `run_prediction`     | `model_path`, `symbol`, `interval`, `bars`                                   | Generates real-time signals from saved model.   |
-| `run_backtest`       | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission`        | Evaluates signal performance on historical data. |
+| `train_model`        | `symbol`, `interval`, `bars`, `warmup_bars`, `sequence_length`, `output_dir`, `model_dir` | Trains online model with online updates disabled to prevent data leakage. |
+| `run_prediction`     | `model_path`, `symbol`, `interval`, `bars`                                   | Generates signals using trained model (online updates disabled). |
+| `run_backtest`       | `signals_path`, `symbol`, `interval`, `initial_capital`, `commission`        | Evaluates signal performance with approximate timestamp matching. |
 | `train_and_backtest` | `symbol`, `interval`, `bars`, `warmup_bars`                                  | Sequential pipeline for training and validation. |
 
 ---
@@ -163,3 +163,4 @@ By default, the worker saves artifacts to the following locations inside the con
 - **422 Validation Error**: Check `worker/webhook.py` logs for specific validation details. Ensure the payload matches the expected Pydantic schema on the receiver.
 - **TypeError in Tasks**: Tasks now explicitly convert numeric inputs to `int`. Ensure `bars` or `warmup_bars` are valid numbers. Orchestrated tasks (like `train_and_backtest`) use shared core functions to avoid `RuntimeError` from `.get()`.
 - **Redis Connection Error**: Check if Redis is up with `./docker-manage.sh status`.
+- **Degenerate/Same Predictions**: If all predictions are the same or degenerate, the model may have been trained with data leakage. Tasks now disable online updates during training/prediction. Retrain models with the fixed code.

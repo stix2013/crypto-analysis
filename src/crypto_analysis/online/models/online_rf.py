@@ -41,16 +41,20 @@ class OnlineRandomForest(OnlineModel):
         """Update trees with new samples.
 
         Uses online bagging: each sample is randomly assigned to
-        a subset of trees for training.
+        a subset of trees using Poisson sampling (lambda=1).
+        This is the standard approach for online random forests.
 
         Args:
             X: Input features of shape (n_samples, n_features)
             y: Target values of shape (n_samples,)
         """
-        for i in range(self.n_trees):
-            for xi, yi in zip(X, y):
-                self.sample_buffers[i].append((xi, yi))
+        for xi, yi in zip(X, y):
+            for i in range(self.n_trees):
+                poisson_count = np.random.poisson(1)
+                for _ in range(poisson_count):
+                    self.sample_buffers[i].append((xi, yi))
 
+        for i in range(self.n_trees):
             if len(self.sample_buffers[i]) >= self.max_samples // 2:
                 self._retrain_tree(i)
 

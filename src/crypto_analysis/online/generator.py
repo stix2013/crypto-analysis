@@ -46,6 +46,8 @@ class OnlineSignalGenerator(SignalGenerator):
         name: str = "Online_Adaptive",
         sequence_length: int = 60,
         update_frequency: int = 1,
+        enable_online_update: bool = True,
+        random_seed: int | None = 42,
     ) -> None:
         """Initialize Online Signal Generator.
 
@@ -53,12 +55,21 @@ class OnlineSignalGenerator(SignalGenerator):
             name: Generator name
             sequence_length: LSTM sequence length
             update_frequency: Model update frequency
+            enable_online_update: Whether to perform online updates during generate()
+            random_seed: Random seed for reproducibility
         """
         super().__init__(name, lookback_period=sequence_length + 100)
 
         self.sequence_length = sequence_length
         self.update_frequency = update_frequency
+        self.enable_online_update = enable_online_update
         self.samples_since_update = 0
+
+        if random_seed is not None:
+            import random
+
+            random.seed(random_seed)
+            np.random.seed(random_seed)
 
         self.rf = OnlineRandomForest(n_trees=10)
         self.pa_classifier = SGDClassifier(
@@ -355,7 +366,11 @@ class OnlineSignalGenerator(SignalGenerator):
         return signals
 
     def _online_update(
-        self, data: pd.DataFrame, scaled_features: np.ndarray, last_prediction: float
+        self,
+        data: pd.DataFrame,
+        scaled_features: np.ndarray,
+        last_prediction: float,
+        actual_direction: float | None = None,
     ) -> None:
         """Update models with most recent outcome.
 
@@ -366,7 +381,12 @@ class OnlineSignalGenerator(SignalGenerator):
             data: Market data
             scaled_features: Scaled feature array
             last_prediction: Last prediction made
+            actual_direction: Pre-computed actual direction (for training).
+                              If None, computes from data (may be incorrect for prediction).
         """
+        if not self.enable_online_update:
+            return
+
         if len(self.prediction_buffer) < 6:
             return
 
@@ -375,10 +395,11 @@ class OnlineSignalGenerator(SignalGenerator):
         if old_pred["features"] is None:
             return
 
-        current_price = data["close"].iloc[-1]
-        old_price = data["close"].iloc[-6]
-        actual_return = (current_price - old_price) / old_price
-        actual_direction = np.sign(actual_return)
+        if actual_direction is None:
+            current_price = data["close"].iloc[-1]
+            old_price = data["close"].iloc[-6]
+            actual_return = (current_price - old_price) / old_price
+            actual_direction = np.sign(actual_return)
 
         # Track per-model errors from stored individual predictions
         old_individual = old_pred.get("individual_predictions", {})

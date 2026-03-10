@@ -284,3 +284,36 @@ class TechnicalIndicatorGenerator(SignalGenerator):
 - **Benchmarking**: Use `tests/test_performance.py` to verify that feature calculation and training logic maintain acceptable performance as data size increases.
 - **Lazy Evaluation**: Use lazy evaluation for expensive computations and cache computed indicators where possible.
 - **Resource Usage**: ML models use PyTorch CPU-only to minimize infrastructure requirements while maintaining high inference speed.
+
+### Debugging Model Issues
+
+When prediction signals are degenerate (all same prediction or repeating values):
+
+1. **Check RF buffer diversity**: Load model and verify each tree's sample buffer has different label distributions
+   ```python
+   import joblib
+   model = joblib.load('models/model_xxx.joblib')
+   for i, buf in enumerate(model.rf.sample_buffers):
+       labels = [s[1] for s in buf]
+       print(f'Buffer {i}: {sum(labels)} ones out of {len(labels)}')
+   ```
+
+2. **Verify tree predictions vary**: Test individual tree predictions on different inputs
+   ```python
+   for tree in model.rf.trees:
+       print(tree.predict(test_point))
+   ```
+
+3. **Common bug**: `OnlineRandomForest.partial_fit()` must use Poisson sampling (random bagging), not add all samples to all trees. See `src/crypto_analysis/online/models/online_rf.py`.
+
+4. **Data leakage in online updates**: The `_online_update()` method computes `actual_direction` from PAST returns but the model predicts FUTURE returns. This mismatch causes degenerate behavior. Fixed by adding `enable_online_update` parameter to disable online updates during training/inference.
+
+5. **Retrain after fixing**: Any models trained with buggy code must be retrained.
+
+### Online Learning Configuration
+
+The `OnlineSignalGenerator` class (in `src/crypto_analysis/online/generator.py`) supports:
+
+- **`enable_online_update`** (default `True`): When `False`, skips online model updates. Should be disabled during training and prediction to prevent data leakage.
+- **`random_seed`** (default 42): Ensures reproducible results across runs.
+- **`actual_direction`** (optional): Pre-computed actual direction for online updates, bypassing the leaky computation.

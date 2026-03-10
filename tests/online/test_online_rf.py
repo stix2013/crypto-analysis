@@ -22,8 +22,8 @@ class TestOnlineRandomForest:
 
     def test_partial_fit(self, rf):
         """Test partial_fit updates trees."""
-        X = np.random.randn(50, 10)
-        y = np.random.randn(50)
+        X = np.random.randn(200, 10)
+        y = np.random.randn(200)
 
         rf.partial_fit(X, y)
 

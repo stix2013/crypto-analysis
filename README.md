@@ -64,6 +64,16 @@ signals = predictor.predict()
 signals = predictor.predict(data=my_dataframe)  # With custom data
 ```
 
+## Troubleshooting
+
+### Degenerate Predictions
+If predictions are all the same (e.g., all 1s or all 0s), this indicates data leakage in the online learning pipeline. The system has been fixed to:
+- Disable online updates during training to prevent contamination
+- Disable online updates during prediction/inference
+- Use approximate timestamp matching in backtests
+
+**If you have old models trained before the fix, retrain them with the corrected code.**
+
 ## Using Celery Worker
 For distributed task processing (fetching data, training models, backtesting), the project uses Celery with Redis.
 

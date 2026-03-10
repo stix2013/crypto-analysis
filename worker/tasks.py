@@ -4,10 +4,11 @@ from typing import Any
 import joblib
 import pandas as pd
 from celery import shared_task
+from dotenv import load_dotenv
+
 from crypto_analysis.data import create_client
 from crypto_analysis.online.generator import OnlineSignalGenerator
 from crypto_analysis.signals.backtest import Backtester
-from dotenv import load_dotenv
 
 try:
     from worker.webhook import send_webhook
@@ -65,6 +66,7 @@ def _train_model_core(
         name=f"Online_{symbol}",
         sequence_length=sequence_length,
         update_frequency=10,
+        enable_online_update=False,
     )
 
     warmup_data = data.iloc[:warmup_bars]
@@ -187,6 +189,8 @@ def run_prediction(
 
     generator = joblib.load(model_file)
 
+    generator.enable_online_update = False
+
     feature_lookback = 200
     fetch_bars = max(bars, feature_lookback + generator.sequence_length + 10)
 
@@ -259,13 +263,30 @@ def _run_backtest_core(
     )
 
     for _, row in signals_df.iterrows():
-        timestamp = row["timestamp"]
+        timestamp = pd.to_datetime(row["timestamp"])
         signal_type = row["signal_type"]
 
         if timestamp in price_data.index:
             current_price = price_data.loc[timestamp, "close"]
             backtester.process_signal(
                 timestamp=timestamp,
+                symbol=symbol,
+                signal_type=signal_type,
+                price=current_price,
+            )
+        else:
+            price_data_sorted = price_data.sort_index()
+            if timestamp < price_data_sorted.index[0]:
+                continue
+            if timestamp > price_data_sorted.index[-1]:
+                continue
+            nearest_idx = price_data_sorted.index.get_indexer(
+                [timestamp], method="nearest"
+            )[0]
+            nearest_ts = price_data_sorted.index[nearest_idx]
+            current_price = price_data_sorted.loc[nearest_ts, "close"]
+            backtester.process_signal(
+                timestamp=nearest_ts,
                 symbol=symbol,
                 signal_type=signal_type,
                 price=current_price,
