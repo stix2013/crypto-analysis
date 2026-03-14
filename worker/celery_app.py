@@ -1,14 +1,13 @@
-import os
-
 from celery import Celery
 
-broker_url = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-result_backend = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+from crypto_analysis.settings import get_settings
+
+settings = get_settings()
 
 app = Celery(
     "crypto_analysis",
-    broker=broker_url,
-    backend=result_backend,
+    broker=settings.celery.broker_url,
+    backend=settings.celery.result_backend,
     include=["tasks"],
 )
 
@@ -18,9 +17,9 @@ app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-    task_track_started=True,
-    task_time_limit=3600,
-    task_soft_time_limit=3000,
+    task_track_started=settings.celery.task_track_started,
+    task_time_limit=settings.celery.task_time_limit,
+    task_soft_time_limit=settings.celery.task_soft_time_limit,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
 )

@@ -4,7 +4,6 @@ from typing import Any
 import joblib
 import pandas as pd
 from celery import shared_task
-from dotenv import load_dotenv
 
 from crypto_analysis.data import create_client
 from crypto_analysis.online.generator import OnlineSignalGenerator
@@ -14,8 +13,6 @@ try:
     from worker.webhook import send_webhook
 except ImportError:
     from webhook import send_webhook  # type: ignore[no-redef]
-
-load_dotenv()
 
 
 @shared_task(bind=True, name="fetch_market_data")

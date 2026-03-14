@@ -41,16 +41,18 @@ class TestResolveModelPath:
         )
         assert result == model_file
 
-    def test_symbol_uses_predict_interval_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test symbol-only uses PREDICT_INTERVAL from env."""
-        monkeypatch.setenv("PREDICT_INTERVAL", "4h")
+    def test_symbol_uses_predict_interval_env(self, tmp_path: Path) -> None:
+        """Test symbol-only uses PREDICT_INTERVAL from settings."""
+        from crypto_analysis.settings import Settings, PredictSettings
+
         model_file = tmp_path / "model_ethusdt_4h.joblib"
         model_file.touch()
 
-        result = resolve_model_path(symbol="ETHUSDT", models_dir=str(tmp_path))
-        assert result == model_file
+        # Mock get_settings to return a Settings instance with the desired interval
+        with patch("crypto_analysis.signals.predict.get_settings") as mock_get:
+            mock_get.return_value = Settings(predict=PredictSettings(interval="4h"))
+            result = resolve_model_path(symbol="ETHUSDT", models_dir=str(tmp_path))
+            assert result == model_file
 
     def test_symbol_uses_default_interval_if_no_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -76,35 +78,45 @@ class TestResolveModelPath:
         assert result == model_file
         assert "btcusdt" in str(result)
 
-    def test_predict_model_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test PREDICT_MODEL environment variable."""
+    def test_predict_model_env(self, tmp_path: Path) -> None:
+        """Test PREDICT_MODEL from settings."""
+        from crypto_analysis.settings import Settings, PredictSettings
+
         model_file = tmp_path / "model_ethusdt_1h.joblib"
         model_file.touch()
-        monkeypatch.setenv("PREDICT_MODEL", "model_ethusdt_1h.joblib")
 
-        result = resolve_model_path(models_dir=str(tmp_path))
-        assert result == model_file
+        with patch("crypto_analysis.signals.predict.get_settings") as mock_get:
+            mock_get.return_value = Settings(
+                predict=PredictSettings(model="model_ethusdt_1h.joblib")
+            )
+            result = resolve_model_path(models_dir=str(tmp_path))
+            assert result == model_file
 
-    def test_predict_model_env_with_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test PREDICT_MODEL with full path."""
+    def test_predict_model_env_with_path(self, tmp_path: Path) -> None:
+        """Test PREDICT_MODEL with full path from settings."""
+        from crypto_analysis.settings import Settings, PredictSettings
+
         model_file = tmp_path / "custom_model.joblib"
         model_file.touch()
-        monkeypatch.setenv("PREDICT_MODEL", str(model_file))
 
-        result = resolve_model_path(models_dir="/wrong/path")
-        assert result == model_file
+        with patch("crypto_analysis.signals.predict.get_settings") as mock_get:
+            mock_get.return_value = Settings(
+                predict=PredictSettings(model=str(model_file))
+            )
+            result = resolve_model_path(models_dir="/wrong/path")
+            assert result == model_file
 
-    def test_no_model_specified_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_model_specified_error(self) -> None:
         """Test error when no model can be resolved."""
-        monkeypatch.delenv("PREDICT_MODEL", raising=False)
-        monkeypatch.delenv("PREDICT_INTERVAL", raising=False)
+        from crypto_analysis.settings import Settings, PredictSettings
 
-        with pytest.raises(ValueError, match="No model specified"):
-            resolve_model_path()
+        with patch("crypto_analysis.signals.predict.get_settings") as mock_get:
+            # Create settings with empty values
+            mock_get.return_value = Settings(
+                predict=PredictSettings(model="", interval="1h", symbol="")
+            )
+            with pytest.raises(ValueError, match="No model specified"):
+                resolve_model_path()
 
     def test_symbol_model_not_found(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -115,14 +127,14 @@ class TestResolveModelPath:
         with pytest.raises(FileNotFoundError, match="Model not found"):
             resolve_model_path(symbol="BTCUSDT", models_dir=str(tmp_path))
 
-    def test_symbol_model_not_found_with_interval(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_symbol_model_not_found_with_interval(self, tmp_path: Path) -> None:
         """Test error message includes correct filename pattern."""
-        monkeypatch.setenv("PREDICT_INTERVAL", "1h")
+        from crypto_analysis.settings import Settings, PredictSettings
 
-        with pytest.raises(FileNotFoundError) as exc_info:
-            resolve_model_path(symbol="BTCUSDT", models_dir=str(tmp_path))
+        with patch("crypto_analysis.signals.predict.get_settings") as mock_get:
+            mock_get.return_value = Settings(predict=PredictSettings(interval="1h"))
+            with pytest.raises(FileNotFoundError) as exc_info:
+                resolve_model_path(symbol="BTCUSDT", models_dir=str(tmp_path))
 
         assert "model_btcusdt_1h.joblib" in str(exc_info.value)
 

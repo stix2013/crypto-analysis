@@ -22,12 +22,18 @@ class TestBinanceConfig:
         assert config.secret_key == "test_secret"
 
     def test_env_vars(self, monkeypatch):
-        """Test loading from environment variables."""
+        """Test loading from environment variables via Settings."""
+        from crypto_analysis.settings import Settings
+
         monkeypatch.setenv("BINANCE_API_KEY", "env_api_key")
         monkeypatch.setenv("BINANCE_SECRET_KEY", "env_secret_key")
-        config = BinanceConfig()
-        assert config.api_key == "env_api_key"
-        assert config.secret_key == "env_secret_key"
+
+        # Mock get_settings to return a fresh Settings instance that reads the monkeypatched env
+        with patch("crypto_analysis.data.binance.get_settings") as mock_get:
+            mock_get.return_value = Settings()
+            config = BinanceConfig()
+            assert config.api_key == "env_api_key"
+            assert config.secret_key == "env_secret_key"
 
 
 class TestBinanceClient:

@@ -2,16 +2,14 @@
 
 import hashlib
 import hmac
-import os
 import time
 from dataclasses import dataclass
 from typing import Literal
 
-import dotenv
 import pandas as pd
 import requests
 
-dotenv.load_dotenv()
+from crypto_analysis.settings import get_settings
 
 
 @dataclass
@@ -24,10 +22,11 @@ class BinanceConfig:
     testnet: bool = False
 
     def __post_init__(self) -> None:
+        settings = get_settings()
         if not self.api_key:
-            self.api_key = os.getenv("BINANCE_API_KEY", "")
+            object.__setattr__(self, "api_key", settings.binance.api_key)
         if not self.secret_key:
-            self.secret_key = os.getenv("BINANCE_SECRET_KEY", "")
+            object.__setattr__(self, "secret_key", settings.binance.secret_key)
 
 
 Interval = Literal[

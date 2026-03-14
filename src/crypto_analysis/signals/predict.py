@@ -4,7 +4,6 @@ Provides a clean interface for loading models and generating predictions
 with automatic model path resolution based on symbol and interval.
 """
 
-import os
 from pathlib import Path
 from typing import Any, Optional, cast
 
@@ -12,6 +11,7 @@ import joblib
 import pandas as pd
 
 from crypto_analysis.data import Interval, create_client
+from crypto_analysis.settings import get_settings
 from crypto_analysis.signals.base import Signal
 
 
@@ -50,6 +50,8 @@ def resolve_model_path(
         >>> resolve_model_path("BTCUSDT")  # Uses PREDICT_INTERVAL env
         Path('models/model_btcusdt_1h.joblib')
     """
+    settings = get_settings()
+
     # Priority 1: Explicit model path
     if model_path:
         path = Path(model_path)
@@ -62,22 +64,31 @@ def resolve_model_path(
         symbol_lower = symbol.lower()
 
         # Determine interval: use provided, then env, then default
-        resolved_interval = interval or os.environ.get("PREDICT_INTERVAL", "1h")
+        resolved_interval = interval or settings.predict.interval
 
         # Build filename: model_{symbol}_{interval}.joblib
         filename = f"model_{symbol_lower}_{resolved_interval}.joblib"
         path = Path(models_dir) / filename
 
         if not path.exists():
-            raise FileNotFoundError(
-                f"Model not found: {path}\n"
-                f"Tried to resolve: symbol='{symbol}', interval='{resolved_interval}'\n"
-                f"Expected filename: {filename}"
-            )
+            # Try with model name from settings if it matches
+            if (
+                settings.predict.model
+                and (Path(models_dir) / settings.predict.model).exists()
+            ):
+                # This is a bit complex, let's stick to the logic
+                pass
+
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"Model not found: {path}\n"
+                    f"Tried to resolve: symbol='{symbol}', interval='{resolved_interval}'\n"
+                    f"Expected filename: {filename}"
+                )
         return path
 
     # Priority 3: Use PREDICT_MODEL from environment
-    env_model = os.environ.get("PREDICT_MODEL")
+    env_model = settings.predict.model
     if env_model:
         path = Path(env_model)
         if not path.exists():
@@ -140,12 +151,13 @@ class Predictor:
             FileNotFoundError: If model file doesn't exist
             ValueError: If no model can be resolved
         """
+        settings = get_settings()
         self.model_path = resolve_model_path(symbol, interval, model_path, models_dir)
         self.model = joblib.load(self.model_path)
 
         # Extract symbol from model or provided value
-        self.symbol = cast(str, symbol or os.environ.get("PREDICT_SYMBOL", "UNKNOWN"))
-        raw_interval = interval or os.environ.get("PREDICT_INTERVAL", "1h")
+        self.symbol = symbol or settings.predict.symbol
+        raw_interval = interval or settings.predict.interval
         self.interval = cast(Interval, raw_interval)
 
     def predict(

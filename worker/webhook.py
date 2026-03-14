@@ -1,13 +1,13 @@
 import logging
-import os
 import time
 from typing import Any
 
 import requests
 
+from crypto_analysis.settings import get_settings
+
 logger = logging.getLogger(__name__)
 
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 MAX_RETRIES = 3
 
 
@@ -34,7 +34,9 @@ def send_webhook(
     Returns:
         True if webhook was sent successfully, False otherwise
     """
-    if not WEBHOOK_URL:
+    settings = get_settings()
+    webhook_url = settings.webhook_url
+    if not webhook_url:
         logger.debug("WEBHOOK_URL not configured, skipping webhook")
         return False
 
@@ -50,7 +52,7 @@ def send_webhook(
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+            response = requests.post(webhook_url, json=payload, timeout=10)
             if response.ok:
                 logger.info(
                     f"Webhook sent successfully for task {task_name} ({task_id})"

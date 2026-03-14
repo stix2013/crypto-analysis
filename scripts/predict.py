@@ -5,18 +5,17 @@ Simple prediction script using the new prediction API.
 """
 
 import argparse
-import os
 from pathlib import Path
 
 import pandas as pd
 from crypto_analysis.data import create_client
+from crypto_analysis.settings import get_settings
 from crypto_analysis.signals.predict import Predictor, resolve_model_path
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def main() -> None:
+    settings = get_settings()
+
     parser = argparse.ArgumentParser(description="Generate signals with trained model")
     parser.add_argument(
         "symbol",
@@ -40,7 +39,7 @@ def main() -> None:
     parser.add_argument(
         "--bars",
         type=int,
-        default=int(os.environ.get("PREDICT_BARS", 500)),
+        default=settings.predict.bars,
         help="Number of recent bars to fetch",
     )
     parser.add_argument(

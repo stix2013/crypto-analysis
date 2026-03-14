@@ -1,7 +1,6 @@
 """Online signal generator with real-time adaptation."""
 
 import importlib.util
-import os
 from collections import deque
 from typing import Any
 
@@ -16,6 +15,7 @@ from crypto_analysis.online.detection.regime import RegimeDetector
 from crypto_analysis.online.models.online_lstm import OnlineLSTM
 from crypto_analysis.online.models.online_nn import OnlineNeuralNetwork
 from crypto_analysis.online.models.online_rf import OnlineRandomForest
+from crypto_analysis.settings import get_settings
 from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 from crypto_analysis.signals.features import FeatureEngineer
 
@@ -507,14 +507,15 @@ class OnlineSignalGenerator(SignalGenerator):
         Returns:
             Adjusted threshold value
         """
-        base_threshold = float(os.getenv("REGIME_THRESHOLD_BASE", "0.10"))
+        settings = get_settings()
+        base_threshold = settings.regime.threshold_base
 
         regime_adjustments = {
-            "trending_up": float(os.getenv("REGIME_ADJUST_TRENDING_UP", "0.05")),
-            "trending_down": float(os.getenv("REGIME_ADJUST_TRENDING_DOWN", "0.05")),
-            "ranging": float(os.getenv("REGIME_ADJUST_RANGING", "0.20")),
-            "volatile": float(os.getenv("REGIME_ADJUST_VOLATILE", "0.15")),
-            "crash": float(os.getenv("REGIME_ADJUST_CRASH", "0.30")),
+            "trending_up": settings.regime.adjust_trending_up,
+            "trending_down": settings.regime.adjust_trending_down,
+            "ranging": settings.regime.adjust_ranging,
+            "volatile": settings.regime.adjust_volatile,
+            "crash": settings.regime.adjust_crash,
         }
 
         return base_threshold + regime_adjustments.get(regime.name, 0.1)
