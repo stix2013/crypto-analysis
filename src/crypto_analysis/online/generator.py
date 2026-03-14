@@ -1,6 +1,7 @@
 """Online signal generator with real-time adaptation."""
 
 import importlib.util
+import os
 from collections import deque
 from typing import Any
 
@@ -417,7 +418,8 @@ class OnlineSignalGenerator(SignalGenerator):
                 pass
 
         recent_X = scaled_features[-10:]
-        future_returns = data["close"].pct_change().shift(-6).iloc[-10:].values
+        # Use target_return_6 instead of shift(-6) on 1-period pct_change to match initial training labels
+        future_returns = (data["close"].shift(-6) / data["close"] - 1).iloc[-10:].values
         recent_y = (future_returns > 0).astype(int)
         recent_y = recent_y[~np.isnan(future_returns)]
         recent_X = recent_X[: len(recent_y)]
@@ -505,14 +507,14 @@ class OnlineSignalGenerator(SignalGenerator):
         Returns:
             Adjusted threshold value
         """
-        base_threshold = 0.1
+        base_threshold = float(os.getenv("REGIME_THRESHOLD_BASE", "0.10"))
 
         regime_adjustments = {
-            "trending_up": 0.05,
-            "trending_down": 0.05,
-            "ranging": 0.2,
-            "volatile": 0.15,
-            "crash": 0.3,
+            "trending_up": float(os.getenv("REGIME_ADJUST_TRENDING_UP", "0.05")),
+            "trending_down": float(os.getenv("REGIME_ADJUST_TRENDING_DOWN", "0.05")),
+            "ranging": float(os.getenv("REGIME_ADJUST_RANGING", "0.20")),
+            "volatile": float(os.getenv("REGIME_ADJUST_VOLATILE", "0.15")),
+            "crash": float(os.getenv("REGIME_ADJUST_CRASH", "0.30")),
         }
 
         return base_threshold + regime_adjustments.get(regime.name, 0.1)

@@ -116,12 +116,18 @@ def main() -> None:
     online_data = data.iloc[args.warmup_bars :]
     total_bars = len(online_data)
 
+    # Pre-calculate features once for efficiency (matching worker logic)
+    all_features = generator.feature_engineer.create_features(data)
+
     for i, idx in enumerate(online_data.index):
         lookback = data.loc[:idx]
         if len(lookback) < generator.lookback_period:
             continue
 
-        signal_list = generator.generate(lookback)
+        # Use efficient pre-calculated feature slicing
+        current_features = all_features.loc[:idx]
+        signal_list = generator.generate(lookback, features_df=current_features)
+
         if signal_list:
             for sig in signal_list:
                 signals.append(

@@ -119,29 +119,10 @@ def main() -> None:
             # might not have been called for the very last bar if it wasn't in signals
             regime = predictor.model.regime_detector.update(latest_window)
 
-            # For prediction, we need to do what generate() does but without the threshold check
-            features_df = predictor.model.feature_engineer.create_features(
-                latest_window
-            )
-            if not features_df.empty:
-                feature_data = features_df[predictor.model.feature_cols].values
-                scaled = predictor.model.scaler.transform(feature_data)
-                current_sequence = scaled[-predictor.model.sequence_length :].reshape(
-                    1, predictor.model.sequence_length, -1
-                )
-                current_point = scaled[-1:].reshape(1, -1)
-
-                # Simple ensemble (similar to generate logic)
-                preds = []
-                if predictor.model.lstm:
-                    preds.append(predictor.model.lstm.predict(current_sequence)[0][0])
-                if predictor.model.nn:
-                    preds.append(predictor.model.nn.predict(current_point)[0] * 2 - 1)
-                preds.append(predictor.model.rf.predict(current_point)[0] * 2 - 1)
-
-                avg_pred = sum(preds) / len(preds)
-
-                print("\nCurrent Market State:")
+            # Get the actual computed ensemble prediction from the model's buffer
+            avg_pred = 0.0
+            if len(predictor.model.prediction_buffer) > 0:
+                avg_pred = predictor.model.prediction_buffer[-1]["prediction"]
                 print(f"  Symbol:    {predictor.symbol}")
                 print(f"  Timestamp: {data.index[-1]}")
                 print(f"  Regime:    {regime.name}")

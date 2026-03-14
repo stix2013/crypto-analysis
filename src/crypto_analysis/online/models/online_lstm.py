@@ -119,13 +119,10 @@ if TORCH_AVAILABLE:
             self.model.train()
             self.optimizer.zero_grad()
 
-            # Reset or detach hidden state
-            # If batch size changes (e.g., last batch in fit()), we must reset
-            if self.hidden_state is not None:
-                if self.hidden_state[0].size(1) != X_tensor.size(0):
-                    self.hidden_state = None
-                else:
-                    self.hidden_state = tuple(h.detach() for h in self.hidden_state)
+            # For overlapping sequences (TBPTT), each sequence contains the history natively.
+            # Carrying over hidden states across overlapping windows causes "pollution".
+            # Resetting state guarantees each gradient step operates on a clean slate of exactly `sequence_length` history.
+            self.hidden_state = None
 
             lstm_out, self.hidden_state = self.model.lstm(
                 X_tensor, self.hidden_state

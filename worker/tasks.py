@@ -56,6 +56,7 @@ def _train_model_core(
     sequence_length: int = 60,
     output_dir: str = "/app/signals",
     model_dir: str = "/app/models",
+    enable_online_update: bool = True,
 ) -> dict[str, Any]:
     bars = int(bars)
     warmup_bars = int(warmup_bars)
@@ -66,7 +67,7 @@ def _train_model_core(
         name=f"Online_{symbol}",
         sequence_length=sequence_length,
         update_frequency=10,
-        enable_online_update=False,
+        enable_online_update=enable_online_update,
     )
 
     warmup_data = data.iloc[:warmup_bars]
@@ -141,6 +142,7 @@ def train_model(
     sequence_length: int = 60,
     output_dir: str = "/app/signals",
     model_dir: str = "/app/models",
+    enable_online_update: bool = True,
 ) -> dict[str, Any]:
     result = _train_model_core(
         symbol=symbol,
@@ -150,6 +152,7 @@ def train_model(
         sequence_length=sequence_length,
         output_dir=output_dir,
         model_dir=model_dir,
+        enable_online_update=enable_online_update,
     )
 
     send_webhook(
@@ -191,13 +194,34 @@ def run_prediction(
 
     generator.enable_online_update = False
 
-    feature_lookback = 200
-    fetch_bars = max(bars, feature_lookback + generator.sequence_length + 10)
+    # Need 200 (MA) + sequence_length (60) = 260 bars min. Use 300 for safety.
+    feature_lookback = max(300, generator.lookback_period)
+    # Fetch enough to look for signals in the last 50 bars
+    fetch_bars = max(bars, feature_lookback + 50)
 
     client = create_client()
     data = client.fetch_historical(symbol, interval, fetch_bars)  # type: ignore[arg-type]
 
-    signals = generator.generate(data)
+    # Ensure symbol is attached for signal generator (important for Signal object)
+    data.symbol = symbol
+
+    signals = []
+    # Similar to predict.py, we look for signals in the recent window
+    process_bars = min(len(data), 50)
+
+    # Pre-calculate features once for efficiency (matching train_model logic)
+    all_features = generator.feature_engineer.create_features(data)
+
+    for i in range(len(data) - process_bars, len(data)):
+        window = data.iloc[: i + 1]
+        if len(window) < generator.lookback_period:
+            continue
+
+        # Use efficient pre-calculated feature slicing
+        current_features = all_features.loc[: window.index[-1]]
+        sig_list = generator.generate(window, features_df=current_features)
+        if sig_list:
+            signals.extend(sig_list)
 
     result: dict[str, Any] = {
         "symbol": symbol,
@@ -343,6 +367,7 @@ def train_and_backtest(
     interval: str = "1h",
     bars: int = 5000,
     warmup_bars: int = 1000,
+    enable_online_update: bool = True,
 ) -> dict[str, Any]:
     bars = int(bars)
     warmup_bars = int(warmup_bars)
@@ -353,6 +378,7 @@ def train_and_backtest(
         interval=interval,
         bars=bars,
         warmup_bars=warmup_bars,
+        enable_online_update=enable_online_update,
     )
 
     backtest_result = _run_backtest_core(

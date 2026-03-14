@@ -42,8 +42,8 @@ services:
       retries: 3
     restart: unless-stopped
     volumes:
-      - trade_signal:/app/signals
-      - trade_model:/app/models
+      - ./signals:/app/signals
+      - ./models:/app/models
 
 # Celery beat service
   celery_beat:
