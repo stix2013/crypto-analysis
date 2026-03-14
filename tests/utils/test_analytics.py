@@ -88,3 +88,27 @@ class TestPerformanceAnalyzer:
         # This shouldn't crash
         fig = PerformanceAnalyzer.plot_equity_curve(equity_df)
         assert fig is None
+
+    def test_plot_equity_curve_with_matplotlib(self):
+        """Test plot equity curve with matplotlib."""
+        pytest.importorskip("matplotlib")
+
+        equity_df = pd.DataFrame(
+            {"equity": [100, 110, 105, 120]},
+            index=pd.date_range("2023-01-01", periods=4),
+        )
+
+        fig = PerformanceAnalyzer.plot_equity_curve(equity_df)
+        assert fig is not None
+
+    def test_plot_equity_curve_with_title(self):
+        """Test plot equity curve with custom title."""
+        pytest.importorskip("matplotlib")
+
+        equity_df = pd.DataFrame(
+            {"equity": [100, 110, 105, 120]},
+            index=pd.date_range("2023-01-01", periods=4),
+        )
+
+        fig = PerformanceAnalyzer.plot_equity_curve(equity_df, title="Custom Title")
+        assert fig is not None
