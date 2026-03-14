@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from unittest.mock import MagicMock
 from crypto_analysis.signals.base import SignalType
 from crypto_analysis.signals.ml_generators import (
     LSTMSignalGenerator,
@@ -18,10 +19,7 @@ class TestLSTMSignalGenerator:
     def test_initialization(self):
         """Test generator initialization."""
         gen = LSTMSignalGenerator(
-            sequence_length=10,
-            n_features=5,
-            lstm_units=[32, 16],
-            dropout=0.1
+            sequence_length=10, n_features=5, lstm_units=[32, 16], dropout=0.1
         )
 
         assert gen.name == "LSTM_Predictor"
@@ -43,18 +41,16 @@ class TestLSTMSignalGenerator:
 
     def test_fit_insufficient_data(self, minimal_ohlcv_data):
         """Test fit with insufficient data raises error."""
-        gen = LSTMSignalGenerator(sequence_length=120)  # minimal_ohlcv_data has 100 rows
+        gen = LSTMSignalGenerator(
+            sequence_length=120
+        )  # minimal_ohlcv_data has 100 rows
         with pytest.raises(ValueError, match="Not enough data for sequences"):
             gen.fit(minimal_ohlcv_data)
 
     def test_fit_and_generate(self, sample_ohlcv_data):
         """Test full fit and generate cycle."""
         # Using small parameters for faster test
-        gen = LSTMSignalGenerator(
-            sequence_length=10,
-            lstm_units=[8],
-            dropout=0.0
-        )
+        gen = LSTMSignalGenerator(sequence_length=10, lstm_units=[8], dropout=0.0)
 
         # Fit with very few epochs for speed
         gen.fit(sample_ohlcv_data, epochs=1, batch_size=32)
@@ -94,7 +90,7 @@ class TestRandomForestSignalGeneratorExtended:
         gen.fit(sample_ohlcv_data, val_ratio=0.3)
 
         assert gen.is_fitted is True
-        assert hasattr(gen, 'feature_importance')
+        assert hasattr(gen, "feature_importance")
         assert len(gen.feature_importance) == len(gen.feature_cols)
 
     def test_get_features(self, sample_ohlcv_data):
@@ -117,7 +113,7 @@ class TestRandomForestSignalGeneratorExtended:
         # Mock predict_proba to return high confidence "UP"
         class MockModel:
             def predict_proba(self, X):
-                return np.array([[0.1, 0.9]]) # 10% down, 90% up
+                return np.array([[0.1, 0.9]])  # 10% down, 90% up
 
         original_model = gen.model
         gen.model = MockModel()
@@ -133,7 +129,7 @@ class TestRandomForestSignalGeneratorExtended:
         # Mock predict_proba to return high confidence "DOWN"
         class MockModelDown:
             def predict_proba(self, X):
-                return np.array([[0.9, 0.1]]) # 90% down, 10% up
+                return np.array([[0.9, 0.1]])  # 90% down, 10% up
 
         gen.model = MockModelDown()
 
@@ -147,3 +143,100 @@ class TestRandomForestSignalGeneratorExtended:
 
         # Restore model
         gen.model = original_model
+
+
+@pytest.mark.skipif(not TF_AVAILABLE, reason="TensorFlow not available")
+class TestLSTMSignalGeneratorExtended:
+    """Extended tests for LSTM signal generator."""
+
+    def test_generate_with_insufficient_data(self):
+        """Test generate with data shorter than lookback."""
+        gen = LSTMSignalGenerator(sequence_length=10, n_features=5)
+        gen.is_fitted = True
+
+        small_data = pd.DataFrame(
+            {
+                "open": [1, 2, 3],
+                "high": [1.1, 2.1, 3.1],
+                "low": [0.9, 1.9, 2.9],
+                "close": [1, 2, 3],
+                "volume": [100, 100, 100],
+            }
+        )
+
+        signals = gen.generate(small_data)
+        assert signals == []
+
+    def test_generate_with_current_position_long(self, sample_ohlcv_data):
+        """Test generate with existing long position."""
+        gen = LSTMSignalGenerator(sequence_length=10, lstm_units=[8], dropout=0.0)
+        gen.fit(sample_ohlcv_data, epochs=1, batch_size=32)
+
+        signals = gen.generate(sample_ohlcv_data, current_position=1.0)
+        for sig in signals:
+            assert sig.signal_type != SignalType.ENTRY_LONG
+
+    def test_generate_with_current_position_short(self, sample_ohlcv_data):
+        """Test generate with existing short position."""
+        gen = LSTMSignalGenerator(sequence_length=10, lstm_units=[8], dropout=0.0)
+        gen.fit(sample_ohlcv_data, epochs=1, batch_size=32)
+
+        signals = gen.generate(sample_ohlcv_data, current_position=-1.0)
+        for sig in signals:
+            assert sig.signal_type != SignalType.ENTRY_SHORT
+
+    def test_feature_engineer_integration(self, sample_ohlcv_data):
+        """Test feature engineer is properly integrated."""
+        gen = LSTMSignalGenerator(sequence_length=10)
+        gen.is_fitted = True
+
+        features = gen.get_features(sample_ohlcv_data)
+        assert isinstance(features, pd.DataFrame)
+        assert len(features) > 0
+
+    def test_model_predict_handles_none_model(self, sample_ohlcv_data):
+        """Test generate returns empty when model is None."""
+        gen = LSTMSignalGenerator(sequence_length=10)
+        gen.is_fitted = True
+        gen.model = None
+        gen.scaler = MagicMock()
+        gen.scaler.transform.return_value = np.random.rand(100, 10)
+        gen.feature_cols = ["col1", "col2"]
+
+        signals = gen.generate(sample_ohlcv_data)
+        assert signals == []
+
+
+class TestRandomForestSignalGeneratorEdgeCases:
+    """Edge case tests for RandomForest generator."""
+
+    def test_generate_with_insufficient_data(self, sample_ohlcv_data):
+        """Test generate with insufficient data."""
+        gen = RandomForestSignalGenerator(n_estimators=5)
+        gen.fit(sample_ohlcv_data)
+
+        small_data = sample_ohlcv_data.iloc[:50]
+        signals = gen.generate(small_data)
+        assert signals == []
+
+    def test_fit_with_sample_data(self, sample_ohlcv_data):
+        """Test fitting with sufficient data."""
+        gen = RandomForestSignalGenerator(n_estimators=3)
+        gen.fit(sample_ohlcv_data)
+        assert gen.is_fitted is True
+
+    def test_feature_importance_shape(self, sample_ohlcv_data):
+        """Test feature importance has correct shape."""
+        gen = RandomForestSignalGenerator(n_estimators=5)
+        gen.fit(sample_ohlcv_data)
+
+        assert hasattr(gen, "feature_importance")
+        assert len(gen.feature_importance) == len(gen.feature_cols)
+
+    def test_get_features_after_fit(self, sample_ohlcv_data):
+        """Test get_features works after fitting."""
+        gen = RandomForestSignalGenerator(n_estimators=5)
+        gen.fit(sample_ohlcv_data)
+
+        features = gen.get_features(sample_ohlcv_data)
+        assert isinstance(features, pd.DataFrame)
