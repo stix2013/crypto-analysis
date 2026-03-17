@@ -303,7 +303,7 @@ class BinanceClient:
         bars: int,
     ) -> pd.DataFrame:
         """Fetch historical data starting from a specific time."""
-        df = self._request(
+        data = self._request(
             "GET",
             "/fapi/v1/klines",
             {
@@ -314,11 +314,11 @@ class BinanceClient:
             },
         )
 
-        if not df:
+        if not data:
             return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
         df = pd.DataFrame(
-            df,
+            data,
             columns=[
                 "open_time",
                 "open",

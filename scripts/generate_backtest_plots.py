@@ -142,32 +142,6 @@ def main() -> None:
     )
     backtester.set_price_data(price_data)
 
-    time_span_hours = (signal_end - signal_start).total_seconds() / 3600
-
-    # Convert interval to minutes for bar calculation
-    interval_mins = {
-        "1m": 1,
-        "5m": 5,
-        "15m": 15,
-        "30m": 30,
-        "1h": 60,
-        "4h": 240,
-        "1d": 1440,
-    }.get(args.interval, 60)
-    bars_needed = int(time_span_hours * 60 / interval_mins) + 500
-
-    print(
-        f"  Signals span: {time_span_hours:.0f}h, fetching {bars_needed} bars from {signal_start}..."
-    )
-
-    backtester = Backtester(
-        initial_capital=args.initial_capital,
-        commission=args.commission,
-        generate_plots=True,
-        output_dir=args.output_dir,
-    )
-    backtester.set_price_data(price_data)
-
     price_data_sorted = price_data.sort_index().tz_localize(None)
     processed = 0
 

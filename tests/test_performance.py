@@ -103,7 +103,7 @@ def test_training_loop_complexity():
 
     print(f"\nTime for {size1} bars: {time_small:.4f}s")
     print(f"\nTime for {size2} bars: {time_large:.4f}s")
-    print(f"\nScaling factor: {ratio:.2f}x time for {size2/size1:.2f}x data")
+    print(f"\nScaling factor: {ratio:.2f}x time for {size2 / size1:.2f}x data")
 
     # Linear scaling means ratio should be approx size2/size1 = 3.0
     # Quadratic scaling means ratio should be approx (size2/size1)^2 = 9.0

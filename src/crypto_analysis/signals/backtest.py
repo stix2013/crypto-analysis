@@ -57,6 +57,21 @@ class Backtester:
         )
         self.equity_history: list[dict[str, Any]] = []
 
+        # Visualization parameters
+        self.generate_plots = kwargs.get("generate_plots", False)
+        self.output_dir = kwargs.get("output_dir", "signals")
+
+    def set_price_data(self, data: pd.DataFrame) -> None:
+        """Pre-load price data into the backtester.
+
+        Args:
+            data: DataFrame with OHLCV data
+        """
+        # Determine symbol from columns or assume single asset for now if just 'close'
+        if "close" in data.columns:
+            # Assumes data is indexed by timestamp
+            self._preloaded_data = data
+
     def process_signal(
         self,
         timestamp: pd.Timestamp,
@@ -73,6 +88,8 @@ class Backtester:
             price: Execution price
         """
         # 1. Update data handler with current price
+        # Instead of creating new row, we could append to a list
+        # but to keep backward compatibility with load_data:
         temp_df = pd.DataFrame(
             {"close": [price]},
             index=[timestamp],
@@ -216,3 +233,29 @@ class Backtester:
         }
 
         return results
+
+    def _generate_visualization(self, equity_df: pd.DataFrame) -> None:
+        """Generate and plot equity curve if enabled.
+
+        Args:
+            equity_df: DataFrame with equity history indexed by timestamp
+        """
+        if not self.generate_plots or equity_df.empty:
+            return
+
+        import os
+        from .utils.analytics import PerformanceAnalyzer
+
+        fig = PerformanceAnalyzer.plot_equity_curve(
+            equity_df, title="Backtest Equity Curve"
+        )
+
+        if fig is not None:
+            os.makedirs(self.output_dir, exist_ok=True)
+            path = os.path.join(self.output_dir, "equity_curve.png")
+            fig.savefig(path)
+            # Cannot plt.close(fig) here cleanly without importing matplotlib.pyplot directly,
+            # but PerformanceAnalyzer deals with matplotlib anyway.
+            import matplotlib.pyplot as plt
+            plt.close(fig)
+            print(f"Equity curve plot saved to: {path}")

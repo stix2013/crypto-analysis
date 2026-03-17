@@ -325,7 +325,7 @@ The `OnlineSignalGenerator` class (in `src/crypto_analysis/online/generator.py`)
 
 ## Workflow Orchestration
 
-1. **Document Plans**: All plans must be written down in the `.opencode/plans` folder.
+1. **Document Plans**: All plans must be written down in the `tasks` folder.
 ### 2. Plan Node Default
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
 - If something goes sideways, STOP and re-plan immediately - don't keep pushing
@@ -350,7 +350,7 @@ The `OnlineSignalGenerator` class (in `src/crypto_analysis/online/generator.py`)
 - Skip this for simple, obvious fixes - don't over-engineer
 - Challenge your own work before presenting it
 
-### 6. Autonomous Bug Fizing
+### 6. Autonomous Bug Fixing
 - When given a bug report: just fix it. Don't ask for hand-holding
 - Point at logs, errors, failing tests - then resolve them
 - Zero context switching required from the user

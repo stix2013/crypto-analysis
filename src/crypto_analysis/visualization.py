@@ -220,7 +220,7 @@ def plot_feature_importance(
                 ha="center",
             )
 
-    except Exception as e:
+    except (AttributeError, IndexError, ValueError) as e:
         ax.text(0.5, 0.5, f"Error plotting importance: {str(e)}", ha="center")
 
     plt.tight_layout()

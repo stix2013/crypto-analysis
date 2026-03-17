@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -123,8 +124,6 @@ class PerformanceAnalyzer:
         Returns:
             Matplotlib Figure object
         """
-        import matplotlib.pyplot as plt
-
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
         # Equity Curve
