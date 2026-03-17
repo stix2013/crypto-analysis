@@ -44,9 +44,15 @@ def plot_price_with_trades(
 
         # If signals don't have price, use close price from data
         if "price" not in signals.columns:
-            buys = buys.merge(data[["close"]], left_on="timestamp", right_index=True)
-            sells = sells.merge(data[["close"]], left_on="timestamp", right_index=True)
-            exits = exits.merge(data[["close"]], left_on="timestamp", right_index=True)
+            buys = buys.merge(
+                data[["close"]], left_on="timestamp", right_index=True, how="left"
+            )
+            sells = sells.merge(
+                data[["close"]], left_on="timestamp", right_index=True, how="left"
+            )
+            exits = exits.merge(
+                data[["close"]], left_on="timestamp", right_index=True, how="left"
+            )
             buy_prices = buys["close"]
             sell_prices = sells["close"]
             exit_prices = exits["close"]
@@ -139,9 +145,9 @@ def plot_regime_timeline(
     Returns:
         Matplotlib Figure object
     """
-    if "regime" not in signals.columns:
+    if "regime" not in signals.columns or "timestamp" not in signals.columns:
         fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, "No regime data available", ha="center")
+        ax.text(0.5, 0.5, "No regime or timestamp data available", ha="center")
         return fig
 
     fig, ax = plt.subplots(figsize=(15, 4))

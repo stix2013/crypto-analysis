@@ -52,6 +52,19 @@ class TrainSettings(BaseSettings):
     sequence_length: int = 60
 
 
+class BacktestSettings(BaseSettings):
+    """Backtesting configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="BACKTEST_",
+        frozen=True,
+        extra="ignore",
+    )
+
+    initial_capital: float = 10000.0
+    enable_plots: bool = False
+
+
 class PredictSettings(BaseSettings):
     """Prediction script configuration."""
 
@@ -100,6 +113,7 @@ class Settings(BaseSettings):
     train: TrainSettings = Field(default_factory=TrainSettings)
     predict: PredictSettings = Field(default_factory=PredictSettings)
     celery: CelerySettings = Field(default_factory=CelerySettings)
+    backtest: BacktestSettings = Field(default_factory=BacktestSettings)
     webhook_url: str = Field(default="", alias="WEBHOOK_URL")
 
 

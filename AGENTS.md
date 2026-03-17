@@ -124,6 +124,11 @@ def calculate_indicator(data: pd.Series) -> pd.Series:
     return compute_indicator(data)
 ```
 
+### Environment Variables
+All environment variables in the project should be accessed through the centralized settings system in `src/crypto_analysis/settings.py`. Direct access to environment variables via `os.getenv()` or `os.environ.get()` should be avoided.
+
+For example, variables like `ENABLE_BACKTEST_PLOTS` and `BACKTEST_INITIAL_CAPITAL` are accessed through the settings system (`settings.backtest.enable_plots` and `settings.backtest.initial_capital`) rather than directly from the environment.
+
 ### Project Structure
 ```
 crypto-analysis/
