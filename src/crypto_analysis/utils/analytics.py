@@ -120,32 +120,29 @@ class PerformanceAnalyzer:
     ) -> Any:
         """Generate a plot of the equity curve and drawdowns.
 
-        Note: Requires matplotlib to be installed.
+        Returns:
+            Matplotlib Figure object
         """
-        try:
-            import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt
 
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
-            # Equity Curve
-            ax1.plot(
-                equity_history.index, equity_history["equity"], label="Portfolio Equity"
-            )
-            ax1.set_title(title)
-            ax1.set_ylabel("Value ($)")
-            ax1.grid(True)
-            ax1.legend()
+        # Equity Curve
+        ax1.plot(
+            equity_history.index, equity_history["equity"], label="Portfolio Equity"
+        )
+        ax1.set_title(title)
+        ax1.set_ylabel("Value ($)")
+        ax1.grid(True)
+        ax1.legend()
 
-            # Drawdown
-            rolling_max = equity_history["equity"].cummax()
-            drawdown = (equity_history["equity"] - rolling_max) / rolling_max
-            ax2.fill_between(equity_history.index, drawdown, 0, color="red", alpha=0.3)
-            ax2.set_ylabel("Drawdown (%)")
-            ax2.set_xlabel("Time")
-            ax2.grid(True)
+        # Drawdown
+        rolling_max = equity_history["equity"].cummax()
+        drawdown = (equity_history["equity"] - rolling_max) / rolling_max
+        ax2.fill_between(equity_history.index, drawdown, 0, color="red", alpha=0.3)
+        ax2.set_ylabel("Drawdown (%)")
+        ax2.set_xlabel("Time")
+        ax2.grid(True)
 
-            plt.tight_layout()
-            return fig
-        except ImportError:
-            print("matplotlib not found. Plotting disabled.")
-            return None
+        plt.tight_layout()
+        return fig

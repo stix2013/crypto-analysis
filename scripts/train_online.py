@@ -17,6 +17,7 @@ import pandas as pd
 from crypto_analysis.data import create_client
 from crypto_analysis.online.generator import OnlineSignalGenerator
 from crypto_analysis.settings import get_settings
+from crypto_analysis.visualization import save_training_plots
 
 
 def main() -> None:
@@ -59,6 +60,12 @@ def main() -> None:
         type=int,
         default=settings.train.sequence_length,
         help="Sequence length for LSTM",
+    )
+    parser.add_argument(
+        "--plot",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate and save visualization plots",
     )
     args = parser.parse_args()
 
@@ -168,6 +175,19 @@ def main() -> None:
     model_path = Path(args.model_output)
     joblib.dump(generator, model_path)
     print(f"\n  Model saved to: {model_path}")
+
+    if args.plot and signals:
+        print("\n[5/5] Generating visualization plots...")
+        plot_prefix = f"{args.symbol.lower()}_{args.interval.lower()}"
+        plot_dir = Path(args.output).parent
+        saved_plots = save_training_plots(
+            data=data,
+            signals=signals_df,
+            generator=generator,
+            output_dir=str(plot_dir),
+            prefix=plot_prefix,
+        )
+        print(f"  Saved {len(saved_plots)} plots to {plot_dir}")
 
     print(f"\n{'=' * 60}")
     print("Training complete!")

@@ -14,6 +14,13 @@ from crypto_analysis.settings import Settings, get_settings
 from crypto_analysis.signals.aggregator import SignalAggregator
 from crypto_analysis.signals.base import Signal, SignalGenerator, SignalType
 from crypto_analysis.signals.features import FeatureEngineer
+from crypto_analysis.visualization import (
+    plot_feature_importance,
+    plot_price_with_trades,
+    plot_regime_timeline,
+    plot_signal_distribution,
+    save_training_plots,
+)
 
 __all__ = [
     # Settings
@@ -32,4 +39,10 @@ __all__ = [
     "AdaptiveLearningRate",
     "OnlineSignalGenerator",
     "ContinuousLearningPipeline",
+    # Visualization
+    "plot_feature_importance",
+    "plot_price_with_trades",
+    "plot_regime_timeline",
+    "plot_signal_distribution",
+    "save_training_plots",
 ]
