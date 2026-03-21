@@ -109,6 +109,11 @@ The worker can be configured to send task results via webhook. Set `WEBHOOK_URL`
 WEBHOOK_URL="http://host.docker.internal:8000/api/tasks/webhook/celery-callback"
 ```
 
+### Configuration
+All environment variables in the project should be accessed through the centralized settings system in `src/crypto_analysis/settings.py`. Direct access to environment variables via `os.getenv()` or `os.environ.get()` should be avoided.
+
+For example, variables like `ENABLE_BACKTEST_PLOTS` and `BACKTEST_INITIAL_CAPITAL` are now accessed through the settings system (`settings.backtest.enable_plots` and `settings.backtest.initial_capital`) rather than directly from the environment.
+
 ### Triggering Tasks via CLI
 You can trigger tasks using the `celery call` command:
 ```bash

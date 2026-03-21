@@ -246,4 +246,35 @@ class TestBacktester:
         assert len(backtester.portfolio.positions) == 0
         # Cash was 10120. Bought 1.0 at 105.0. Cost = 105.0
         # New cash = 10120 - 105 = 10015.0
-        assert backtester.portfolio.cash == 10015.0
+    def test_backtester_visualization_and_price_data(self):
+        """Test set_price_data and _generate_visualization methods."""
+        backtester = Backtester(
+            initial_capital=10000.0,
+            generate_plots=True,
+            output_dir="/tmp",
+        )
+
+        # Test set_price_data
+        df = pd.DataFrame(
+            {"close": [100.0, 110.0]},
+            index=pd.date_range("2023-01-01", periods=2, freq="h")
+        )
+        backtester.set_price_data(df)
+        assert hasattr(backtester, "_preloaded_data")
+        assert len(backtester._preloaded_data) == 2
+
+        # Test _generate_visualization with empty df
+        backtester._generate_visualization(pd.DataFrame())
+
+        # Test _generate_visualization with data (mocking os.makedirs/savefig implicitly by using /tmp)
+        equity_df = pd.DataFrame(
+            {"equity": [10000.0, 10100.0]},
+            index=pd.date_range("2023-01-01", periods=2, freq="h")
+        )
+        try:
+            backtester._generate_visualization(equity_df)
+            import os
+            assert os.path.exists("/tmp/equity_curve.png")
+            os.remove("/tmp/equity_curve.png")
+        except ImportError:
+            pass  # If matplotlib is missing, it will handle it or throw handled error

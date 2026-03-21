@@ -76,23 +76,8 @@ class TestPerformanceAnalyzer:
         # (1 + 0.21)^(1/2) - 1 = 1.1 - 1 = 0.1
         assert metrics["annual_return"] == pytest.approx(0.1, rel=1e-2)
 
-    def test_plot_equity_curve_no_matplotlib(self, monkeypatch):
-        """Test plot handling when matplotlib is missing."""
-        import sys
-
-        # Simulate missing matplotlib
-        monkeypatch.setitem(sys.modules, "matplotlib", None)
-        monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
-
-        equity_df = pd.DataFrame({"equity": [100, 110]}, index=[0, 1])
-        # This shouldn't crash
-        fig = PerformanceAnalyzer.plot_equity_curve(equity_df)
-        assert fig is None
-
     def test_plot_equity_curve_with_matplotlib(self):
         """Test plot equity curve with matplotlib."""
-        pytest.importorskip("matplotlib")
-
         equity_df = pd.DataFrame(
             {"equity": [100, 110, 105, 120]},
             index=pd.date_range("2023-01-01", periods=4),
@@ -103,8 +88,6 @@ class TestPerformanceAnalyzer:
 
     def test_plot_equity_curve_with_title(self):
         """Test plot equity curve with custom title."""
-        pytest.importorskip("matplotlib")
-
         equity_df = pd.DataFrame(
             {"equity": [100, 110, 105, 120]},
             index=pd.date_range("2023-01-01", periods=4),

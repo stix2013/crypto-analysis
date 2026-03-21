@@ -28,7 +28,7 @@ services:
       <<: *binance-hosts
       host.docker.internal: host-gateway
     networks:
-      - shared_network
+      - db_network
     deploy:
       resources:
         limits:
@@ -57,7 +57,7 @@ services:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     networks:
-      - shared_network
+      - db_network
     extra_hosts:
       host.docker.internal: host-gateway
     depends_on:
@@ -90,7 +90,7 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
       - FLOWER_UNAUTHENTICATED_API=True
     networks:
-      - shared_network
+      - db_network
     extra_hosts:
       host.docker.internal: host-gateway
     healthcheck:
@@ -109,5 +109,5 @@ volumes:
   trade_model:
 
 networks:
-  shared_network:
+  db_network:
     external: true

@@ -57,6 +57,7 @@ htmlcov/
 *.feather
 /data/
 *.xlsx
+signals/*.png
 
 # Logs
 *.log

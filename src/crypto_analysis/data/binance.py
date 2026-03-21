@@ -194,77 +194,154 @@ class BinanceClient:
         symbol: str,
         interval: Interval,
         bars: int = 1000,
+        start_time: pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         """Fetch historical OHLCV data efficiently.
 
-        Uses a backward-fetching approach to get the most recent bars
-        efficiently by fetching progressively older data.
+        When start_time is None (default), uses a backward-fetching approach to
+        get the most recent bars efficiently by fetching progressively older data.
+        When start_time is provided, fetches data forward from that timestamp.
 
         Args:
             symbol: Trading pair symbol (e.g., 'ETHUSDT')
             interval: Kline interval
             bars: Number of bars to fetch (default 1000)
+            start_time: Optional start time to fetch from (default: fetch most recent bars)
 
         Returns:
             DataFrame with OHLCV data
         """
         bars = int(bars)
-        # Initial fetch of latest data
-        df = self.fetch_ohlcv(symbol, interval, limit=min(bars, 1500))
 
-        # Progressively fetch older data if we need more
-        while len(df) < bars:
-            # Fetch data older than our current earliest bar
-            first_time = int(df.index[0].timestamp() * 1000) - 1
-            more_data = self._request(
-                "GET",
-                "/fapi/v1/klines",
-                {
-                    "symbol": symbol.upper(),
-                    "interval": interval,
-                    "endTime": first_time,
-                    "limit": min(bars - len(df), 1500),
-                },
-            )
+        if start_time:
+            start_ms = int(start_time.timestamp() * 1000)
+            # Fetch in chunks if we need more than 1500 bars
+            all_data = []
+            remaining_bars = bars
+            current_start_ms = start_ms
 
-            if not more_data:
-                break
+            while remaining_bars > 0:
+                fetch_limit = min(remaining_bars, 1500)
+                df_chunk = self._fetch_from_time(
+                    symbol, interval, current_start_ms, fetch_limit
+                )
 
-            new_df = pd.DataFrame(
-                more_data,
-                columns=[
-                    "open_time",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "close_time",
-                    "quote_volume",
-                    "trades",
-                    "taker_buy_base_volume",
-                    "taker_buy_quote_volume",
-                    "ignore",
-                ],
-            )
+                if df_chunk.empty:
+                    break
 
-            new_df["open_time"] = pd.to_datetime(new_df["open_time"], unit="ms")
-            numeric_cols = ["open", "high", "low", "close", "volume"]
-            for col in numeric_cols:
-                new_df[col] = pd.to_numeric(new_df[col], errors="coerce")
+                all_data.append(df_chunk)
+                remaining_bars -= len(df_chunk)
 
-            new_df = new_df.set_index("open_time")
-            new_df = new_df[numeric_cols]
+                # Move start time forward for next chunk
+                if len(df_chunk) < fetch_limit:
+                    break  # No more data available
+                current_start_ms = int(df_chunk.index[-1].timestamp() * 1000) + 1
 
-            # Older data goes at the top
-            df = pd.concat([new_df, df])
-            df = df[~df.index.duplicated(keep="last")]
+            if all_data:
+                df = pd.concat(all_data)
+                df = df[~df.index.duplicated(keep="last")]
+                return df.tail(bars)
+            else:
+                return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        else:
+            df = self.fetch_ohlcv(symbol, interval, limit=min(bars, 1500))
+            while len(df) < bars:
+                first_time = int(df.index[0].timestamp() * 1000) - 1
+                more_data = self._request(
+                    "GET",
+                    "/fapi/v1/klines",
+                    {
+                        "symbol": symbol.upper(),
+                        "interval": interval,
+                        "endTime": first_time,
+                        "limit": min(bars - len(df), 1500),
+                    },
+                )
 
-            # If we didn't get much data, might be at the beginning of history
-            if len(more_data) < 10:
-                break
+                if not more_data:
+                    break
+
+                new_df = pd.DataFrame(
+                    more_data,
+                    columns=[
+                        "open_time",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                        "close_time",
+                        "quote_volume",
+                        "trades",
+                        "taker_buy_base_volume",
+                        "taker_buy_quote_volume",
+                        "ignore",
+                    ],
+                )
+
+                new_df["open_time"] = pd.to_datetime(new_df["open_time"], unit="ms")
+                numeric_cols = ["open", "high", "low", "close", "volume"]
+                for col in numeric_cols:
+                    new_df[col] = pd.to_numeric(new_df[col], errors="coerce")
+
+                new_df = new_df.set_index("open_time")
+                new_df = new_df[numeric_cols]
+
+                df = pd.concat([new_df, df])
+                df = df[~df.index.duplicated(keep="last")]
+
+                if len(more_data) < 10:
+                    break
 
         return df.tail(bars)
+
+    def _fetch_from_time(
+        self,
+        symbol: str,
+        interval: Interval,
+        start_ms: int,
+        bars: int,
+    ) -> pd.DataFrame:
+        """Fetch historical data starting from a specific time."""
+        data = self._request(
+            "GET",
+            "/fapi/v1/klines",
+            {
+                "symbol": symbol.upper(),
+                "interval": interval,
+                "startTime": start_ms,
+                "limit": min(bars, 1500),
+            },
+        )
+
+        if not data:
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+        df = pd.DataFrame(
+            data,
+            columns=[
+                "open_time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "close_time",
+                "quote_volume",
+                "trades",
+                "taker_buy_base_volume",
+                "taker_buy_quote_volume",
+                "ignore",
+            ],
+        )
+
+        df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
+        numeric_cols = ["open", "high", "low", "close", "volume"]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.set_index("open_time")
+        return df[numeric_cols]
 
     def fetch_recent(
         self,

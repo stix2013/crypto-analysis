@@ -14,6 +14,12 @@ try:
 except ImportError:
     from webhook import send_webhook  # type: ignore[no-redef]
 
+from crypto_analysis.settings import get_settings
+
+# Get initial capital from settings
+_settings = get_settings()
+DEFAULT_INITIAL_CAPITAL = _settings.backtest.initial_capital
+
 
 @shared_task(bind=True, name="fetch_market_data")
 def fetch_market_data(
@@ -253,8 +259,9 @@ def _run_backtest_core(
     signals_path: str,
     symbol: str = "BTCUSDT",
     interval: str = "1h",
-    initial_capital: float = 10000.0,
+    initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     commission: float = 0.0004,
+    generate_plots: bool = False,
 ) -> dict[str, Any]:
     signals_file = Path(signals_path)
     if not signals_file.exists():
@@ -281,7 +288,9 @@ def _run_backtest_core(
     backtester = Backtester(
         initial_capital=initial_capital,
         commission=commission,
+        generate_plots=generate_plots,
     )
+    backtester.set_price_data(price_data)
 
     for _, row in signals_df.iterrows():
         timestamp = pd.to_datetime(row["timestamp"])
@@ -334,15 +343,20 @@ def run_backtest(
     signals_path: str,
     symbol: str = "BTCUSDT",
     interval: str = "1h",
-    initial_capital: float = 10000.0,
+    initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     commission: float = 0.0004,
 ) -> dict[str, Any]:
+    # Get plot generation setting from settings
+    _settings = get_settings()
+    generate_plots = _settings.backtest.enable_plots
+
     result = _run_backtest_core(
         signals_path=signals_path,
         symbol=symbol,
         interval=interval,
         initial_capital=initial_capital,
         commission=commission,
+        generate_plots=generate_plots,
     )
 
     send_webhook(
@@ -368,8 +382,10 @@ def train_and_backtest(
 ) -> dict[str, Any]:
     bars = int(bars)
     warmup_bars = int(warmup_bars)
+    # Get plot generation setting from settings
+    _settings = get_settings()
+    generate_plots = _settings.backtest.enable_plots
 
-    # Call core logic functions directly to avoid blocking Celery subtasks
     train_result = _train_model_core(
         symbol=symbol,
         interval=interval,
@@ -382,6 +398,7 @@ def train_and_backtest(
         signals_path=train_result["signals_file"],
         symbol=symbol,
         interval=interval,
+        generate_plots=generate_plots,
     )
 
     send_webhook(
